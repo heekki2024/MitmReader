@@ -23,11 +23,15 @@ with open(sys.argv[1], "rb") as logfile:
     try:
         for f in freader.stream():
             #print(f)
+            #isinstance(인스턴스, 데이터나 클래스 타입)
+            #숫자 33이 int타입인지 확인이 필요하다면 result = isinstance(33, int)
             if isinstance(f, http.HTTPFlow):
-                print("===")
+                print("===============================")
                 request = f.request
+
                 method = request.method
                 host = request.host
+
                 print(method, host)
                 print(f"path: {request.path}")
                 
@@ -39,6 +43,8 @@ with open(sys.argv[1], "rb") as logfile:
                     print("]")
                 else:
                     print("queries: []")
+
+                #------------------------------------
 
                 contentType = ""
                 contentLength = 0
@@ -56,6 +62,8 @@ with open(sys.argv[1], "rb") as logfile:
                     print("]")
                 else:
                     print("headers: []")
+
+                #------------------------------------
 
                 if method == "POST":
                     if contentLength > 0:

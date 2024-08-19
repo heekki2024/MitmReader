@@ -19,24 +19,32 @@ os.system("")
 
 match = False
 
-def validate_and_read_file():
-    if len(sys.argv) != 2:
-        print("Error: dump file required!")
-        print(f"Usage: {sys.argv[0]} mitm_dump_file")
-        exit(1)
+# def validate_and_read_file():
+#     if len(sys.argv) != 2:
+#         print("Error: dump file required!")
+#         print(f"Usage: {sys.argv[0]} mitm_dump_file")
+#         exit(1)
 
 
-    #로그 파일 이름만 반환
-    return sys.argv[1]
-        # pp = pprint.PrettyPrinter(indent=4)
-        # trackerList = excel_IO.excel_trackerList_input()
+#     #로그 파일 이름만 반환
+#     return sys.argv[1]
+#         # pp = pprint.PrettyPrinter(indent=4)
+#         # trackerList = excel_IO.excel_trackerList_input()
         
+def read_dump():
+    dump_path = input("dump파일의 경로를 입력해주세요: ")
+
+    return dump_path
+
+trackercount = 0
 def process_request_tracker(f, trackerList):
+    global trackercount
     #print(f)
     #isinstance(인스턴스, 데이터나 클래스 타입)
     #숫자 33이 int타입인지 확인이 필요하다면 result = isinstance(33, int)
     if isinstance(f, http.HTTPFlow):
         print("\n!===============================!\n")
+        
 
         request = f.request
 
@@ -44,6 +52,8 @@ def process_request_tracker(f, trackerList):
         host = request.host
        
         if excel_IO.match_trackerList(trackerList, host):
+            trackercount+=1
+            print(f"\033[96m" + str({trackercount}) + "\033[0m")
             print(method, host)
             if method == 'GET':
                 print("\033[95m" + "GET" + "\033[0m")
@@ -243,7 +253,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                         
 
             # 데이터를 엑셀에 기록
-            excel_IO.write_to_excel(host, data_to_write)
+            excel_IO.write_to_excel(host, data_to_write, package_name)
 
 
 def process_post_request(request, contentType, contentLength):
@@ -330,11 +340,11 @@ def process_post_request_excel(request, contentType, contentLength, data_to_writ
         data_to_write.append("NONE")
 
 
-def process_flows(logfile_name, mode):   
-    package_name = os.path.basename(logfile_name)
+def process_flows(dump_path, mode):   
+    package_name = os.path.basename(dump_path)
 
     try:
-        with open(logfile_name, "rb") as logfile:
+        with open(dump_path, "rb") as logfile:
             freader = io.FlowReader(logfile)
             if mode == '1':
                 for f in freader.stream():
@@ -347,9 +357,7 @@ def process_flows(logfile_name, mode):
                 for f in freader.stream():
                     global match
                     
-                    prsnlList_path = input("Enter the path for personal list Excel file: ")
-
-                    prsnlList = excel_IO.excel_prsnlList_input(prsnlList_path)
+                    prsnlList = excel_IO.excel_prsnlList_input()
                     process_request_personInfo(f, prsnlList, package_name)
                     print("")
                     match = False
@@ -369,11 +377,11 @@ def process_flows(logfile_name, mode):
 
 def main():
    
-    mode = input("숫자를 입력")
-    logfile_name = validate_and_read_file()
+    mode = input("숫자를 입력: ")
+    dump_path = read_dump()
     
     
-    process_flows(logfile_name, mode)
+    process_flows(dump_path, mode)
 
             
 

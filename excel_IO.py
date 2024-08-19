@@ -6,7 +6,7 @@ from openpyxl.utils.exceptions import IllegalCharacterError
 MAX_HOSTNAME_LENGTH = 31
 
 def excel_trackerList_input():
-    trackerList_path = r"C:\Users\kfri1\Desktop\trackList.xlsx"
+    trackerList_path = r"C:\Users\xten\Desktop\goodchoicetracker.xlsx"
     wb = openpyxl.load_workbook(trackerList_path)
     ws = wb['Sheet1']
     if 'Sheet1' in wb.sheetnames:
@@ -17,7 +17,7 @@ def excel_trackerList_input():
     return trackerList
 
 def excel_prsnlList_input():
-    prsnlList_path = r"C:\Users\kfri1\Desktop\PersonalInfoList.xlsx"
+    prsnlList_path = r"C:\Users\xten\Desktop\prsnlList.xlsx"
     wb = openpyxl.load_workbook(prsnlList_path)
     ws = wb['Sheet1']
     if 'Sheet1' in wb.sheetnames:
@@ -35,9 +35,6 @@ def match_trackerList(trackerList, host):
         # trackerList의 각 항목을 단어로 검색하기 위해 단어 경계(\b)를 추가
         word_pattern = rf'{re.escape(pattern)}\b'
         if re.search(word_pattern, host, re.IGNORECASE):
-            global count
-            count+=1
-            print(count)
             return True
     return False
 
@@ -96,16 +93,21 @@ def clean_string(value):
     # 허용되지 않는 제어 문자를 제거
     return re.sub(r'[\x00-\x1F\x7F]', '', value)
 
-def write_to_excel(host, data):
-    clean_host = clean_host_name(host)
-    if os.path.exists(excel_file_path):
-        wb = openpyxl.load_workbook(excel_file_path)
+def write_to_excel(host, data, package_name):
+
+    results_folder_path = r"C:\Users\xten\Desktop\testing1"
+    result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")
+
+    if os.path.exists(result_path):
+        wb = openpyxl.load_workbook(result_path)
     else:
         wb = openpyxl.Workbook()
 
         # 기본으로 생성되는 'Sheet' 시트를 제거
         default_sheet = wb.active
         wb.remove(default_sheet)
+
+    clean_host = clean_host_name(host)
 
     if clean_host in wb.sheetnames:
         ws = wb[clean_host]
@@ -126,7 +128,7 @@ def write_to_excel(host, data):
             print(f"Illegal character in value: {value}. Error: {e}") 
 
     try:
-        wb.save(excel_file_path)
+        wb.save(result_path)
     except Exception as e:
         print(f"Error saving Excel file: {e}")
 

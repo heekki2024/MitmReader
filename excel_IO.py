@@ -39,7 +39,9 @@ def match_trackerList(trackerList, host):
     return False
 
 
-def match_prsnlList(prsnlList, kv):
+def match_prsnlList(prsnlList, kv, matched_patterns):
+
+    exception_keyword = 'x86'
 
     if isinstance(kv, list):
         for k, v in kv:
@@ -49,8 +51,9 @@ def match_prsnlList(prsnlList, kv):
                 word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
                 if re.search(word_pattern, k, re.IGNORECASE) or re.search(word_pattern, v, re.IGNORECASE):
 
-                    return True
-
+                    matched_patterns.append(pattern)
+                if re.search(exception_keyword, k, re.IGNORECASE) or re.search(exception_keyword, v, re.IGNORECASE):
+                    return False
     elif isinstance(kv, tuple) and len(kv) == 2:
         k, v = kv
         for pattern in prsnlList:
@@ -59,8 +62,9 @@ def match_prsnlList(prsnlList, kv):
             word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
             if re.search(word_pattern, k, re.IGNORECASE) or re.search(word_pattern, v, re.IGNORECASE):
 
-                return True
-                
+                matched_patterns.append(pattern)
+            if re.search(exception_keyword, k, re.IGNORECASE) or re.search(exception_keyword, v, re.IGNORECASE):
+                return False                
     elif isinstance(kv, str):
         for pattern in prsnlList:
             if pattern is None:  # None 무시
@@ -68,9 +72,11 @@ def match_prsnlList(prsnlList, kv):
             word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
             if re.search(word_pattern, kv, re.IGNORECASE):
 
-                return True
-                
-    return False
+                matched_patterns.append(pattern)
+            if re.search(exception_keyword, kv, re.IGNORECASE):
+                return False                
+            
+    return matched_patterns
 
 # 엑셀 파일 경로 설정
 excel_file_path = r"C:\Users\kfri1\Desktop\231output.xlsx"
@@ -93,7 +99,7 @@ def clean_string(value):
     # 허용되지 않는 제어 문자를 제거
     return re.sub(r'[\x00-\x1F\x7F]', '', value)
 
-def write_to_excel(host, data, package_name):
+def write_to_excel(host, data, matched_patterns, package_name):
 
     results_folder_path = r"C:\Users\xten\Desktop\testing1"
     result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")
@@ -123,7 +129,13 @@ def write_to_excel(host, data, package_name):
     for i, value in enumerate(data, start=1):
         try:
             cleaned_value = clean_string(value)
-            ws.cell(row=i, column=start_column, value=cleaned_value)
+            cell = ws.cell(row=i, column=start_column, value=cleaned_value)
+
+            if matched_patterns:
+                for pattern in matched_patterns:
+                    if re.search(rf'{re.escape(pattern)}', value, re.IGNORECASE):
+                        cell.font = openpyxl.styles.Font(bold=True, color="FF0000")  # 개별 셀에 폰트 스타일 적용            
+
         except IllegalCharacterError as e:
             print(f"Illegal character in value: {value}. Error: {e}") 
 

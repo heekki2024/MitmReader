@@ -107,6 +107,9 @@ def process_request_tracker(f, trackerList):
 count = 0
 def process_request_personInfo(f, prsnlList, package_name):
     global match
+    matched_patterns = []
+
+
     #print(f)
     #isinstance(인스턴스, 데이터나 클래스 타입)
     #숫자 33이 int타입인지 확인이 필요하다면 result = isinstance(33, int)
@@ -118,10 +121,13 @@ def process_request_personInfo(f, prsnlList, package_name):
         method = request.method
         host = request.host
         
+
         word_pattern = rf'{excel_IO.re.escape(package_name)}\b'
 
         if excel_IO.re.search(word_pattern, host, excel_IO.re.IGNORECASE):
             return
+        
+
         # print(method, host)
         # print(f"path: {request.path}")
         
@@ -129,8 +135,11 @@ def process_request_personInfo(f, prsnlList, package_name):
         if len(queries) > 0:
             # print("queries: [")
             for k, v in queries:
-                if excel_IO.match_prsnlList(prsnlList, (k, v)):
+                matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
+                if matched_patterns:
                     match = True
+                elif matched_patterns == False:
+                    return
             #     print(f"\t{k}={v}")
             # print("]")
 
@@ -149,9 +158,12 @@ def process_request_personInfo(f, prsnlList, package_name):
                 elif k.casefold() == "Content-Length".casefold():
                     contentLength = int(v)
 
-                if excel_IO.match_prsnlList(prsnlList, (k, v)):
-                    match = True
+                matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
 
+                if matched_patterns:
+                    match = True
+                elif matched_patterns == False:
+                    return
             # print("]")
 
        
@@ -163,15 +175,33 @@ def process_request_personInfo(f, prsnlList, package_name):
                     match contentType:
                         case "application/x-www-form-urlencoded":
                             data = parse_qs(text)
-                            if excel_IO.match_prsnlList(prsnlList, data.items()):
+    
+                            matched_patterns = excel_IO.match_prsnlList(prsnlList, data.items(), matched_patterns)
+
+                            if matched_patterns:
                                 match = True
+                            elif matched_patterns == False:
+                                return
                         case "application/json":
                             data = json.loads(text)
-                            if excel_IO.match_prsnlList(prsnlList, json.dumps(data, indent=4)):
+
+                            matched_patterns = excel_IO.match_prsnlList(prsnlList, json.dumps(data, indent=4), matched_patterns)
+
+                            if matched_patterns:
                                 match = True
+                            elif matched_patterns == False:
+                                return
+                            
                         case "text/plain":
-                            if excel_IO.match_prsnlList(prsnlList, text):
+                            
+                            matched_patterns = excel_IO.match_prsnlList(prsnlList, text, matched_patterns)
+
+                            if matched_patterns:
                                 match = True
+
+                            elif matched_patterns == False:
+                                return
+                            
                 except json.JSONDecodeError as e:
                     print(f"JSON Decode Error: {e}")
                     print("Invalid JSON:", text)
@@ -253,7 +283,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                         
 
             # 데이터를 엑셀에 기록
-            excel_IO.write_to_excel(host, data_to_write, package_name)
+            excel_IO.write_to_excel(host, data_to_write, matched_patterns, package_name)
 
 
 def process_post_request(request, contentType, contentLength):

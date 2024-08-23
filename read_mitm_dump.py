@@ -14,6 +14,13 @@ from mitmproxy.exceptions import FlowReadException
 from urllib.parse import parse_qs
 import os
 
+import gzip
+import zlib
+from io import BytesIO
+
+
+
+
 # Enable ANSI escape sequences in Windows PowerShell
 os.system("")
 
@@ -121,6 +128,9 @@ def process_request_personInfo(f, prsnlList, package_name):
         method = request.method
         host = request.host
         
+        print(request)
+        print(method)
+        print(host)
 
         word_pattern = rf'{excel_IO.re.escape(package_name)}\b'
 
@@ -131,19 +141,6 @@ def process_request_personInfo(f, prsnlList, package_name):
         # print(method, host)
         # print(f"path: {request.path}")
         
-        queries = request.query.items()
-        if len(queries) > 0:
-            # print("queries: [")
-            for k, v in queries:
-                matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
-                if matched_patterns:
-                    match = True
-                elif matched_patterns == False:
-                    return
-            #     print(f"\t{k}={v}")
-            # print("]")
-
-
         contentType = ""
         contentLength = 0
 
@@ -160,51 +157,87 @@ def process_request_personInfo(f, prsnlList, package_name):
 
                 matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
 
+
+                #인자로 리스트를 받았기에 matched_patterns는 항상 True임
                 if matched_patterns:
                     match = True
-                elif matched_patterns == False:
+                elif matched_patterns == None:
                     return
             # print("]")
 
        
-        if method == "POST":
-            if contentLength > 0:
+        queries = request.query.items()
+        if len(queries) > 0:
+            # print("queries: [")
+            for k, v in queries:
+                matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
+                if matched_patterns:
+                    match = True
+                elif matched_patterns == None:
+                    return
+            #     print(f"\t{k}={v}")
+            # print("]")
+
+
+        if contentLength > 0:
                 text = request.get_text(False)
-                # print("Received JSON text:", text)  # 디버그용으로 추가
+
+                # textformitmproxy = request.data.content  # bytes 형태로 데이터 추출
+
+
+                content_encoding = request.headers.get("Content-Encoding", "")
+
+                # 압축 해제 로직
+                if "gzip" in content_encoding:
+                    try:
+                        compressed_data = BytesIO(text.encode('utf-8'))
+                        with gzip.GzipFile(fileobj=compressed_data) as f:
+                            text = f.read().decode('utf-8')
+                    except (OSError, gzip.BadGzipFile) as e:
+                        print(f"Gzip decompression error: {e}")
+                        return  # 압축 해제 실패 시 중단
+
+                elif "deflate" in content_encoding:
+                    try:
+                        text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
+                    except zlib.error as e:
+                        print(f"Deflate decompression error: {e}")
+                        return  # 압축 해제 실패 시 중단
+                    
+                   
+
                 try:
+                    # Content-Type에 따른 처리
                     match contentType:
                         case "application/x-www-form-urlencoded":
                             data = parse_qs(text)
-    
                             matched_patterns = excel_IO.match_prsnlList(prsnlList, data.items(), matched_patterns)
 
-                            if matched_patterns:
-                                match = True
-                            elif matched_patterns == False:
-                                return
                         case "application/json":
                             data = json.loads(text)
-
                             matched_patterns = excel_IO.match_prsnlList(prsnlList, json.dumps(data, indent=4), matched_patterns)
 
-                            if matched_patterns:
-                                match = True
-                            elif matched_patterns == False:
-                                return
-                            
                         case "text/plain":
-                            
                             matched_patterns = excel_IO.match_prsnlList(prsnlList, text, matched_patterns)
 
-                            if matched_patterns:
-                                match = True
+                        case "application/octet-stream":
+                            hex_data = text.encode('utf-8').hex()
+                            print(f"Hexdump: {hex_data}")
+                            matched_patterns = excel_IO.match_prsnlList(prsnlList, hex_data, matched_patterns)
 
-                            elif matched_patterns == False:
-                                return
-                            
+                        case _:
+                            print(f"Unsupported Content-Type: {contentType}")
+                            return
+
+                    # 매칭 결과 처리
+                    if matched_patterns:
+                        match = True
+                    elif matched_patterns is None:
+                        return
+
                 except json.JSONDecodeError as e:
                     print(f"JSON Decode Error: {e}")
-                    print("Invalid JSON:", text)
+                    print("Invalid JSON:", text)        
 #-------------------------------------------------------------------------------------------------------------------
         global count
         if match == True:
@@ -217,14 +250,6 @@ def process_request_personInfo(f, prsnlList, package_name):
             
             print(method, host)
             print(f"path: {request.path}")
-            
-            if len(queries) > 0:
-                print("queries: [")
-                for k, v in queries:
-                    print(f"\t{k}={v}")
-                print("]")
-            else:
-                print("queries: []")
 
             print("\n----------------------\n")
 
@@ -238,13 +263,28 @@ def process_request_personInfo(f, prsnlList, package_name):
             else:
                 print("headers: []")
 
+
+            if len(queries) > 0:
+                print("queries: [")
+                for k, v in queries:
+                    print(f"\t{k}={v}")
+
+
+                print(f"Query: {request.query}")
+    
+                print("]")
+            else:
+                print("queries: []")                
+
             print("\n----------------------\n")
 
             if method == "POST":
                 process_post_request(request, contentType, contentLength)
             else:
                 print("NONE")
-                        
+            
+#--------------------------------------------------------------------------------------------------
+
             # 매칭된 데이터를 저장할 리스트
             data_to_write = []
 
@@ -254,21 +294,11 @@ def process_request_personInfo(f, prsnlList, package_name):
 
             data_to_write.append(f"path: {request.path}")
 
-            # 쿼리 문자열 추가
-            queries = request.query.items()
-            if len(queries) > 0:
-                data_to_write.append("[")
-                for k, v in queries:
-                    data_to_write.append(f"{k}={v}")
-                data_to_write.append("]")
-
-            else:
-                data_to_write.append("queries: []")
 
             # 헤더 추가
             headers = request.headers.items()
             if len(headers) > 0:
-                data_to_write.append("[")
+                data_to_write.append("headers: [")
                 for k, v in headers:
                     data_to_write.append(f"{k}: {v}")
                 data_to_write.append("]")
@@ -276,11 +306,25 @@ def process_request_personInfo(f, prsnlList, package_name):
             else:
                 data_to_write.append("headers: []")
 
+
+                        # 쿼리 문자열 추가
+            queries = request.query.items()
+            if len(queries) > 0:
+                data_to_write.append("queries: [")
+                for k, v in queries:
+                    data_to_write.append(f"{k}={v}")
+
+                data_to_write.append("]")
+
+            else:
+                data_to_write.append("queries: []")       
+
             if method == "POST":
                 process_post_request_excel(request, contentType, contentLength, data_to_write)
             else:
-                data_to_write.append("headers: []")
-                        
+                pass
+
+                     
 
             # 데이터를 엑셀에 기록
             excel_IO.write_to_excel(host, data_to_write, matched_patterns, package_name)
@@ -291,29 +335,59 @@ def process_post_request(request, contentType, contentLength):
         try:
             print(f"=> {contentType}: [")
             text = request.get_text(False)
+
+            # Content-Encoding 확인
+            content_encoding = request.headers.get("Content-Encoding", "").lower()
+
+            if content_encoding == "gzip":
+                try:
+                    compressed_data = BytesIO(text.encode('utf-8'))
+                    with gzip.GzipFile(fileobj=compressed_data) as f:
+                        decompressed_data = f.read().decode('utf-8')
+                    text = decompressed_data
+                except gzip.BadGzipFile:
+                    print("Data is not gzipped as expected, processing as plain text.")
+                    pass
+            elif content_encoding == "deflate":
+                try:
+                    text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
+                except zlib.error:
+                    print("Data is not deflated as expected, processing as plain text.")
+                    pass
+
             match contentType:
                 case "application/x-www-form-urlencoded":
                     data = parse_qs(text)
                     for k, v in data.items():
                         print(f"\t{k}={v}")
+
                 case "application/json":
-                    data = json.loads(text)
-                    print(json.dumps(data, indent=4))
+                    try:
+                        data = json.loads(text)
+                        print(json.dumps(data, indent=4))
+                    except json.JSONDecodeError as e:
+                        print("Failed to decode JSON:", e)
+
                 case "text/plain":
                     print(text)
+
+                case "application/octet-stream":
+                    hex_data = text.encode('utf-8').hex()
+                    print(f"Hexdump: {hex_data}")
+
                 case _:
                     print("\t** SKIP **")
-            print("]")
-        except json.JSONDecodeError as e:
-            print("\033[95m" + "json error" + "\033[0m")
 
-            print(f"JSON Decode Error: {e}")
-            print("Invalid JSON:", text)                     
+            print("]")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print("Processing as plain text:", text)
 
         print("\033[93m" + "어떤 내용이 있다" + "\033[0m")
         return True
     else:
         print("\033[93m" + "POST이긴 하다" + "\033[0m")
+
 
 def process_post_request_excel(request, contentType, contentLength, data_to_write):
     if contentLength > 0:
@@ -334,6 +408,30 @@ def process_post_request_excel(request, contentType, contentLength, data_to_writ
             data_to_write.append(f"> {contentType}: [")
 
             text = request.get_text(False)
+            content_encoding = request.headers.get("Content-Encoding", "")
+
+            # gzip 또는 deflate 압축 해제 시도
+            if "gzip" in content_encoding:
+                try:
+                    compressed_data = BytesIO(text.encode('utf-8'))
+                    with gzip.GzipFile(fileobj=compressed_data) as f:
+                        decompressed_data = f.read().decode('utf-8')
+                    text = decompressed_data
+                except gzip.BadGzipFile:
+                    print("Error: Data is not gzipped as expected, processing as plain text.")
+                except Exception as e:
+                    print(f"Unexpected error while decompressing gzip: {e}")
+
+            elif "deflate" in content_encoding:
+                try:
+                    decompressed_data = zlib.decompress(text.encode('utf-8')).decode('utf-8')
+                    text = decompressed_data
+                except zlib.error as e:
+                    print(f"Error while decompressing deflate: {e}")
+                except Exception as e:
+                    print(f"Unexpected error while decompressing deflate: {e}")
+
+            # Content-Type에 따라 데이터 처리
             match contentType:
                 case "application/x-www-form-urlencoded":
                     data = parse_qs(text)
@@ -343,32 +441,39 @@ def process_post_request_excel(request, contentType, contentLength, data_to_writ
                         data_to_write.append(f"\t{escaped_key}={escaped_value}")
 
                 case "application/json":
-                    data = json.loads(text)
-                    if isinstance(data, dict):
-                        for k, v in data.items():
-                            escaped_key = escape_excel_formula(k)
-                            escaped_value = escape_excel_formula(v)
-                            data_to_write.append(f"{escaped_key}: {escaped_value}")
-                    elif isinstance(data, list):
-                        for i, item in enumerate(data):
-                            escaped_item = escape_excel_formula(item)
-                            data_to_write.append(f"{i}: {escaped_item}")
+                    try:
+                        data = json.loads(text)
+                        if isinstance(data, dict):
+                            for k, v in data.items():
+                                escaped_key = escape_excel_formula(k)
+                                escaped_value = escape_excel_formula(v)
+                                data_to_write.append(f"\t{escaped_key}: {escaped_value}")
+                        elif isinstance(data, list):
+                            for i, item in enumerate(data):
+                                escaped_item = escape_excel_formula(item)
+                                data_to_write.append(f"\t{i}: {escaped_item}")
+                    except json.JSONDecodeError as e:
+                        print(f"JSON Decode Error: {e}")
+                        print("Invalid JSON:", text)
 
                 case "text/plain":
                     escaped_text = escape_excel_formula(text)
-                    data_to_write.append(escaped_text)
+                    data_to_write.append(f"\t{escaped_text}")
+
+                case "application/octet-stream":
+                    # Binary data processing, here we just store the hexdump
+                    hex_data = text.encode('utf-8').hex()
+                    data_to_write.append(f"\tHexdump: {hex_data}")
 
                 case _:
                     data_to_write.append("\t** SKIP **")
 
             data_to_write.append("]")  # 데이터의 끝에 닫는 대괄호 추가
-
-        except json.JSONDecodeError as e:
-            print(f"JSON Decode Error: {e}")
-            print("Invalid JSON:", text)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print("Processing as plain text:", text)
     else:
-        data_to_write.append("NONE")
-
+        data_to_write.append("post contents 없음")
 
 def process_flows(dump_path, mode):   
     package_name = os.path.basename(dump_path)

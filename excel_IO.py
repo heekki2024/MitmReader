@@ -3,6 +3,11 @@ import re
 import os
 from openpyxl.utils.exceptions import IllegalCharacterError
 
+import gzip
+import zlib
+from io import BytesIO
+
+
 MAX_HOSTNAME_LENGTH = 31
 
 def excel_trackerList_input():
@@ -39,9 +44,23 @@ def match_trackerList(trackerList, host):
     return False
 
 
-def match_prsnlList(prsnlList, kv, matched_patterns):
 
+def match_prsnlList(prsnlList, kv, matched_patterns):
     exception_keyword = 'x86'
+
+    # Check for gzip or deflate compressed data and decompress if necessary
+    if isinstance(kv, bytes):
+        try:
+            # Try decompressing with gzip
+            with gzip.GzipFile(fileobj=BytesIO(kv)) as f:
+                kv = f.read().decode('utf-8')
+        except (OSError, gzip.BadGzipFile):
+            try:
+                # Try decompressing with zlib
+                kv = zlib.decompress(kv).decode('utf-8')
+            except zlib.error:
+                # If neither gzip nor zlib decompression works, assume it's regular bytes
+                kv = kv.decode('utf-8', errors='ignore')
 
     if isinstance(kv, list):
         for k, v in kv:
@@ -50,10 +69,10 @@ def match_prsnlList(prsnlList, kv, matched_patterns):
                     continue
                 word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
                 if re.search(word_pattern, k, re.IGNORECASE) or re.search(word_pattern, v, re.IGNORECASE):
-
                     matched_patterns.append(pattern)
                 if re.search(exception_keyword, k, re.IGNORECASE) or re.search(exception_keyword, v, re.IGNORECASE):
-                    return False
+                    return None
+
     elif isinstance(kv, tuple) and len(kv) == 2:
         k, v = kv
         for pattern in prsnlList:
@@ -61,25 +80,23 @@ def match_prsnlList(prsnlList, kv, matched_patterns):
                 continue
             word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
             if re.search(word_pattern, k, re.IGNORECASE) or re.search(word_pattern, v, re.IGNORECASE):
-
                 matched_patterns.append(pattern)
             if re.search(exception_keyword, k, re.IGNORECASE) or re.search(exception_keyword, v, re.IGNORECASE):
-                return False                
+                return None
+
     elif isinstance(kv, str):
         for pattern in prsnlList:
             if pattern is None:  # None 무시
                 continue
             word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
             if re.search(word_pattern, kv, re.IGNORECASE):
-
                 matched_patterns.append(pattern)
             if re.search(exception_keyword, kv, re.IGNORECASE):
-                return False                
-            
+                return None
+
     return matched_patterns
 
-# 엑셀 파일 경로 설정
-excel_file_path = r"C:\Users\kfri1\Desktop\231output.xlsx"
+
 
 def clean_host_name(host):
     """
@@ -101,7 +118,7 @@ def clean_string(value):
 
 def write_to_excel(host, data, matched_patterns, package_name):
 
-    results_folder_path = r"C:\Users\xten\Desktop\testing1"
+    results_folder_path = r"C:\Users\xten\Desktop\testing3"
     result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")
 
     if os.path.exists(result_path):

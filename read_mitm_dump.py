@@ -143,6 +143,7 @@ def process_request_personInfo(f, prsnlList, package_name):
         
         contentType = ""
         contentLength = 0
+        TransferEncoding = ""
 
         headers = request.headers.items()
         if len(headers) > 0:
@@ -155,89 +156,104 @@ def process_request_personInfo(f, prsnlList, package_name):
                 elif k.casefold() == "Content-Length".casefold():
                     contentLength = int(v)
 
+                elif k.casefold() == "Transfer-Encoding".casefold():
+                    TransferEncoding = v
                 matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
 
 
-                #인자로 리스트를 받았기에 matched_patterns는 항상 True임
                 if matched_patterns:
                     match = True
-                elif matched_patterns == None:
-                    return
-            # print("]")
+                    # return
+                # elif matched_patterns == None:
+                #     pass
 
        
         queries = request.query.items()
         if len(queries) > 0:
-            # print("queries: [")
+
             for k, v in queries:
                 matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
                 if matched_patterns:
                     match = True
-                elif matched_patterns == None:
-                    return
-            #     print(f"\t{k}={v}")
-            # print("]")
+                    # return
+                # elif matched_patterns == None:
+                #     return
+
+        print (f"TransferEncoding: {TransferEncoding}")
 
 
-        if contentLength > 0:
-                text = request.get_text(False)
+        if  TransferEncoding == 'chunked' or contentLength > 0:
 
-                # textformitmproxy = request.data.content  # bytes 형태로 데이터 추출
+            text = request.get_text(False)
 
+            print(type(text))  # <class 'NoneType'>
 
-                content_encoding = request.headers.get("Content-Encoding", "")
+            # textformitmproxy = request.data.content  # bytes 형태로 데이터 추출
 
-                # 압축 해제 로직
-                if "gzip" in content_encoding:
-                    try:
-                        compressed_data = BytesIO(text.encode('utf-8'))
-                        with gzip.GzipFile(fileobj=compressed_data) as f:
-                            text = f.read().decode('utf-8')
-                    except (OSError, gzip.BadGzipFile) as e:
-                        print(f"Gzip decompression error: {e}")
-                        return  # 압축 해제 실패 시 중단
+            content_encoding = request.headers.get("Content-Encoding", "")
 
-                elif "deflate" in content_encoding:
-                    try:
-                        text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
-                    except zlib.error as e:
-                        print(f"Deflate decompression error: {e}")
-                        return  # 압축 해제 실패 시 중단
-                    
-                   
-
+            # 압축 해제 로직
+            if "gzip" in content_encoding and not is_already_decoded(text):
                 try:
-                    # Content-Type에 따른 처리
-                    match contentType:
-                        case "application/x-www-form-urlencoded":
-                            data = parse_qs(text)
-                            matched_patterns = excel_IO.match_prsnlList(prsnlList, data.items(), matched_patterns)
+                    compressed_data = BytesIO(text.encode('utf-8'))
+                    with gzip.GzipFile(fileobj=compressed_data) as f:
+                        text = f.read().decode('utf-8')
+                        print('gzip 성공')
+                        print(text)
 
-                        case "application/json":
-                            data = json.loads(text)
-                            matched_patterns = excel_IO.match_prsnlList(prsnlList, json.dumps(data, indent=4), matched_patterns)
+                except (OSError, gzip.BadGzipFile) as e:
+                    print('gzip 에러')
+                    pass
 
-                        case "text/plain":
-                            matched_patterns = excel_IO.match_prsnlList(prsnlList, text, matched_patterns)
+            elif "deflate" in content_encoding and not is_already_decoded(text):
+                try:
+                    text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
+                except zlib.error as e:
+                    pass
+                
+                
+            try:
+                # Content-Type에 따른 처리
+                match contentType:
+                    case "application/x-www-form-urlencoded":
+                        data = parse_qs(text)
+                        matched_patterns = excel_IO.match_prsnlList(prsnlList, data, matched_patterns)
+                        print("x-www-form-urlencoded")
 
-                        case "application/octet-stream":
-                            hex_data = text.encode('utf-8').hex()
-                            print(f"Hexdump: {hex_data}")
-                            matched_patterns = excel_IO.match_prsnlList(prsnlList, hex_data, matched_patterns)
+                        for k, v in data.items():
+                            print(k)
+                            print(v)
+                        print('----------------------END--------------------')
+                    case "application/json":
+                        data = json.loads(text)
+                        matched_patterns = excel_IO.match_prsnlList(prsnlList, data, matched_patterns)
+                        print("json")
 
-                        case _:
-                            print(f"Unsupported Content-Type: {contentType}")
-                            return
+                    case "text/plain":
+                        matched_patterns = excel_IO.match_prsnlList(prsnlList, text, matched_patterns)
+                        print("text/plain")
 
-                    # 매칭 결과 처리
-                    if matched_patterns:
-                        match = True
-                    elif matched_patterns is None:
+                    case "application/octet-stream":
+                        hex_data = text.encode('utf-8').hex()
+                        print(f"Hexdump: {hex_data}")
+                        matched_patterns = excel_IO.match_prsnlList(prsnlList, hex_data, matched_patterns)
+                        print("octet-stream")
+
+                    case _:
+                        print(f"Unsupported Content-Type: {contentType}")
                         return
 
-                except json.JSONDecodeError as e:
-                    print(f"JSON Decode Error: {e}")
-                    print("Invalid JSON:", text)        
+                # 매칭 결과 처리
+                if matched_patterns:
+                    match = True
+                    print(match)
+                elif matched_patterns is None:
+                    print(matched_patterns)
+                    return
+                print('FALSE')
+            except json.JSONDecodeError as e:
+                print(f"JSON Decode Error: {e}")
+                print("Invalid JSON:", text)        
 #-------------------------------------------------------------------------------------------------------------------
         global count
         if match == True:
@@ -279,9 +295,9 @@ def process_request_personInfo(f, prsnlList, package_name):
             print("\n----------------------\n")
 
             if method == "POST":
-                process_post_request(request, contentType, contentLength)
+                process_post_request(request, contentType, contentLength, TransferEncoding)
             else:
-                print("NONE")
+                print("Not POST")
             
 #--------------------------------------------------------------------------------------------------
 
@@ -320,7 +336,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                 data_to_write.append("queries: []")       
 
             if method == "POST":
-                process_post_request_excel(request, contentType, contentLength, data_to_write)
+                process_post_request_excel(request, contentType, contentLength, data_to_write, TransferEncoding)
             else:
                 pass
 
@@ -330,8 +346,8 @@ def process_request_personInfo(f, prsnlList, package_name):
             excel_IO.write_to_excel(host, data_to_write, matched_patterns, package_name)
 
 
-def process_post_request(request, contentType, contentLength):
-    if contentLength > 0:
+def process_post_request(request, contentType, contentLength, TransferEncoding):
+    if  TransferEncoding == 'chunked' or contentLength > 0:
         try:
             print(f"=> {contentType}: [")
             text = request.get_text(False)
@@ -339,21 +355,30 @@ def process_post_request(request, contentType, contentLength):
             # Content-Encoding 확인
             content_encoding = request.headers.get("Content-Encoding", "").lower()
 
-            if content_encoding == "gzip":
+            if "gzip" in content_encoding and not is_already_decoded(text):
                 try:
                     compressed_data = BytesIO(text.encode('utf-8'))
                     with gzip.GzipFile(fileobj=compressed_data) as f:
-                        decompressed_data = f.read().decode('utf-8')
-                    text = decompressed_data
-                except gzip.BadGzipFile:
+                        text = f.read().decode('utf-8')
+                except (OSError, gzip.BadGzipFile) as e:
                     print("Data is not gzipped as expected, processing as plain text.")
+
+                except Exception as e:
+                    print(f"Unexpected error while decompressing gzip: {e}")
+                    
                     pass
-            elif content_encoding == "deflate":
+
+            elif "deflate" in content_encoding and not is_already_decoded(text):
                 try:
                     text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
-                except zlib.error:
+                except zlib.error as e:
                     print("Data is not deflated as expected, processing as plain text.")
+                except Exception as e:
+                    print(f"Unexpected error while decompressing deflate: {e}")
+                    
                     pass
+
+
 
             match contentType:
                 case "application/x-www-form-urlencoded":
@@ -389,8 +414,8 @@ def process_post_request(request, contentType, contentLength):
         print("\033[93m" + "POST이긴 하다" + "\033[0m")
 
 
-def process_post_request_excel(request, contentType, contentLength, data_to_write):
-    if contentLength > 0:
+def process_post_request_excel(request, contentType, contentLength, data_to_write , TransferEncoding):
+    if  TransferEncoding == 'chunked' or contentLength > 0:
         try:
             # 엑셀에서 수식 오류를 방지하기 위해 특수 문자를 이스케이프 처리
             def escape_excel_formula(value):
@@ -411,7 +436,7 @@ def process_post_request_excel(request, contentType, contentLength, data_to_writ
             content_encoding = request.headers.get("Content-Encoding", "")
 
             # gzip 또는 deflate 압축 해제 시도
-            if "gzip" in content_encoding:
+            if "gzip" in content_encoding and not is_already_decoded(text):
                 try:
                     compressed_data = BytesIO(text.encode('utf-8'))
                     with gzip.GzipFile(fileobj=compressed_data) as f:
@@ -422,7 +447,7 @@ def process_post_request_excel(request, contentType, contentLength, data_to_writ
                 except Exception as e:
                     print(f"Unexpected error while decompressing gzip: {e}")
 
-            elif "deflate" in content_encoding:
+            elif "deflate" in content_encoding and not is_already_decoded(text):
                 try:
                     decompressed_data = zlib.decompress(text.encode('utf-8')).decode('utf-8')
                     text = decompressed_data
@@ -474,6 +499,26 @@ def process_post_request_excel(request, contentType, contentLength, data_to_writ
             print("Processing as plain text:", text)
     else:
         data_to_write.append("post contents 없음")
+
+
+def is_already_decoded(data):
+    """
+    데이터가 이미 압축 해제된 상태인지 확인합니다.
+    
+    :param data: 검사할 텍스트 데이터
+    :return: True이면 이미 압축 해제된 상태, False이면 압축된 상태
+    """
+    # 바이트 형식으로 변환
+    data_bytes = data.encode('utf-8')
+    
+    # Gzip 매직 넘버 검사 (첫 2바이트가 0x1f 0x8b인지 확인)
+    if len(data_bytes) >= 2 and data_bytes[:2] == b'\x1f\x8b':
+        return False  # 압축된 데이터
+    
+    # 기타 압축 형식 (예: Deflate) 검사 - Deflate는 명확한 매직 넘버가 없으므로 추가 검사 불가능
+    # 보통 Gzip만 체크하고 나머지는 압축되지 않은 상태로 간주하는 것이 일반적입니다.
+    
+    return True  # 이미 압축 해제된 데이터로 간주
 
 def process_flows(dump_path, mode):   
     package_name = os.path.basename(dump_path)

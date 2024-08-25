@@ -6,6 +6,7 @@ from openpyxl.utils.exceptions import IllegalCharacterError
 import gzip
 import zlib
 from io import BytesIO
+import json
 
 
 MAX_HOSTNAME_LENGTH = 31
@@ -22,7 +23,10 @@ def excel_trackerList_input():
     return trackerList
 
 def excel_prsnlList_input():
-    prsnlList_path = r"C:\Users\xten\Desktop\prsnlList.xlsx"
+    # prsnlList_path = r"C:\Users\xten\Desktop\prsnlList.xlsx"
+
+    prsnlList_path = r"C:\Users\kfri1\Desktop\PersonalInfoList.xlsx"
+
     wb = openpyxl.load_workbook(prsnlList_path)
     ws = wb['Sheet1']
     if 'Sheet1' in wb.sheetnames:
@@ -46,6 +50,7 @@ def match_trackerList(trackerList, host):
 
 
 def match_prsnlList(prsnlList, kv, matched_patterns):
+
     exception_keyword = 'x86'
 
     # Check for gzip or deflate compressed data and decompress if necessary
@@ -63,35 +68,70 @@ def match_prsnlList(prsnlList, kv, matched_patterns):
                 kv = kv.decode('utf-8', errors='ignore')
 
     if isinstance(kv, list):
-        for k, v in kv:
-            for pattern in prsnlList:
-                if pattern is None:  # None 무시
-                    continue
-                word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
-                if re.search(word_pattern, k, re.IGNORECASE) or re.search(word_pattern, v, re.IGNORECASE):
-                    matched_patterns.append(pattern)
-                if re.search(exception_keyword, k, re.IGNORECASE) or re.search(exception_keyword, v, re.IGNORECASE):
+        for item in kv:
+
+            if isinstance(item, (list, dict, tuple)):
+                matched_patterns = match_prsnlList(prsnlList, item, matched_patterns)
+                if matched_patterns is None:
+                    return None                
+
+            else:
+                for pattern in prsnlList:
+                    if pattern is None:  # None 무시
+                        continue
+                    word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
+                    if re.search(word_pattern, str(item), re.IGNORECASE):
+                        matched_patterns.append(pattern)
+
+                    if re.search(exception_keyword, str(item), re.IGNORECASE):
+                        return None
+        
+
+    elif isinstance(kv, tuple):
+        for item in kv:
+            if isinstance(item, (list, dict, tuple)):
+                matched_patterns = match_prsnlList(prsnlList, item, matched_patterns)
+                if matched_patterns is None:
                     return None
+                
+            else:
+                for pattern in prsnlList:
+                    if pattern is None:  # None 무시
+                        continue
+                    word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
+                    if re.search(word_pattern, str(item), re.IGNORECASE):
+                        matched_patterns.append(pattern)
 
-    elif isinstance(kv, tuple) and len(kv) == 2:
-        k, v = kv
-        for pattern in prsnlList:
-            if pattern is None:  # None 무시
-                continue
-            word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
-            if re.search(word_pattern, k, re.IGNORECASE) or re.search(word_pattern, v, re.IGNORECASE):
-                matched_patterns.append(pattern)
-            if re.search(exception_keyword, k, re.IGNORECASE) or re.search(exception_keyword, v, re.IGNORECASE):
-                return None
+                    if re.search(exception_keyword, str(item), re.IGNORECASE):
+                        return None
+                
+    elif isinstance(kv, dict):
+        for k, v in kv.items():
+            if isinstance(v, (list, dict, tuple)):
+                matched_patterns = match_prsnlList(prsnlList, v, matched_patterns)
+                if matched_patterns is None:
+                    return None
+                    
+            else:
+                for pattern in prsnlList:
+                    if pattern is None:  # None 무시
+                        continue
+                    word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
+                    if re.search(word_pattern, str(k), re.IGNORECASE) or re.search(word_pattern, str(v), re.IGNORECASE):
+                        matched_patterns.append(pattern)
 
+                    if re.search(exception_keyword, str(k), re.IGNORECASE) or re.search(word_pattern, str(v), re.IGNORECASE):
+                        return None
+                
     elif isinstance(kv, str):
         for pattern in prsnlList:
             if pattern is None:  # None 무시
                 continue
             word_pattern = rf'{re.escape(str(pattern))}\b'  # 패턴을 문자열로 변환
-            if re.search(word_pattern, kv, re.IGNORECASE):
+            if re.search(word_pattern, str(kv), re.IGNORECASE):
                 matched_patterns.append(pattern)
-            if re.search(exception_keyword, kv, re.IGNORECASE):
+
+            if re.search(exception_keyword, str(kv), re.IGNORECASE):
                 return None
 
     return matched_patterns
@@ -112,13 +152,16 @@ def clean_host_name(host):
     
     return clean_host
 
+
 def clean_string(value):
     # 허용되지 않는 제어 문자를 제거
     return re.sub(r'[\x00-\x1F\x7F]', '', value)
 
+
+
 def write_to_excel(host, data, matched_patterns, package_name):
 
-    results_folder_path = r"C:\Users\xten\Desktop\testing3"
+    results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
     result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")
 
     if os.path.exists(result_path):
@@ -148,9 +191,13 @@ def write_to_excel(host, data, matched_patterns, package_name):
             cleaned_value = clean_string(value)
             cell = ws.cell(row=i, column=start_column, value=cleaned_value)
 
+            print('##########################')
+            print(value)
+            print('##########################')
+
             if matched_patterns:
                 for pattern in matched_patterns:
-                    if re.search(rf'{re.escape(pattern)}', value, re.IGNORECASE):
+                    if re.search(rf'{re.escape(str(pattern))}', value, re.IGNORECASE):
                         cell.font = openpyxl.styles.Font(bold=True, color="FF0000")  # 개별 셀에 폰트 스타일 적용            
 
         except IllegalCharacterError as e:

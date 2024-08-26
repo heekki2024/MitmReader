@@ -112,9 +112,18 @@ def process_request_tracker(f, trackerList):
             print("매칭되는 호스트 없음")
 
 count = 0
+
+
+
+
+
+
+
+#------------------------------------------------------------------------------------------
 def process_request_personInfo(f, prsnlList, package_name):
     global match
     matched_patterns = []
+    data_to_write = []
 
 
     #print(f)
@@ -132,6 +141,10 @@ def process_request_personInfo(f, prsnlList, package_name):
         print(method)
         print(host)
 
+        data_to_write.append(request)
+        data_to_write.append(method)
+        data_to_write.append(host)
+
         word_pattern = rf'{excel_IO.re.escape(package_name)}\b'
 
         if excel_IO.re.search(word_pattern, host, excel_IO.re.IGNORECASE):
@@ -147,6 +160,7 @@ def process_request_personInfo(f, prsnlList, package_name):
 
         headers = request.headers.items()
         if len(headers) > 0:
+            data_to_write.append("headers: [")
             # print("headers: [")
             for k, v in headers:
                 # print(f"\t{k}: {v}")
@@ -157,27 +171,38 @@ def process_request_personInfo(f, prsnlList, package_name):
                     contentLength = int(v)
 
                 elif k.casefold() == "Transfer-Encoding".casefold():
-                    TransferEncoding = v
-                matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
+                    TransferEncoding = v  
+
+    
+                matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns, data_to_write)
 
 
                 if matched_patterns:
                     match = True
                     # return
-                # elif matched_patterns == None:
-                #     pass
+                elif matched_patterns == None:
+                    return
+            data_to_write.append("]")
 
-       
+        else:
+            data_to_write.append("headers: []")
+ 
+
+
         queries = request.query.items()
         if len(queries) > 0:
-
+            data_to_write.append("queries:[")
             for k, v in queries:
-                matched_patterns = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns)
+                matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns, data_to_write)
                 if matched_patterns:
                     match = True
                     # return
                 # elif matched_patterns == None:
                 #     return
+
+            data_to_write.append("]")
+        else:
+            data_to_write.append("queries: []")
 
         print (f"TransferEncoding: {TransferEncoding}")
 
@@ -217,26 +242,26 @@ def process_request_personInfo(f, prsnlList, package_name):
                 match contentType:
                     case "application/x-www-form-urlencoded":
                         data = parse_qs(text)
-                        matched_patterns = excel_IO.match_prsnlList(prsnlList, data, matched_patterns)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
                         print("x-www-form-urlencoded")
 
-                        for k, v in data.items():
+                        for k, v in data:
                             print(k)
                             print(v)
                         print('----------------------END--------------------')
                     case "application/json":
                         data = json.loads(text)
-                        matched_patterns = excel_IO.match_prsnlList(prsnlList, data, matched_patterns)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
                         print("json")
 
                     case "text/plain":
-                        matched_patterns = excel_IO.match_prsnlList(prsnlList, text, matched_patterns)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, text, matched_patterns, data_to_write)
                         print("text/plain")
 
                     case "application/octet-stream":
                         hex_data = text.encode('utf-8').hex()
                         print(f"Hexdump: {hex_data}")
-                        matched_patterns = excel_IO.match_prsnlList(prsnlList, hex_data, matched_patterns)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, hex_data, matched_patterns, data_to_write)
                         print("octet-stream")
 
                     case _:
@@ -301,49 +326,58 @@ def process_request_personInfo(f, prsnlList, package_name):
             
 #--------------------------------------------------------------------------------------------------
 
-            # 매칭된 데이터를 저장할 리스트
-            data_to_write = []
+            # # 매칭된 데이터를 저장할 리스트
 
-            # 메소드와 호스트 추가
-            data_to_write.append(method)
-            data_to_write.append(host)
+            # # 메소드와 호스트 추가
+            # data_to_write.append(method)
+            # data_to_write.append(host)
 
-            data_to_write.append(f"path: {request.path}")
-
-
-            # 헤더 추가
-            headers = request.headers.items()
-            if len(headers) > 0:
-                data_to_write.append("headers: [")
-                for k, v in headers:
-                    data_to_write.append(f"{k}: {v}")
-                data_to_write.append("]")
-
-            else:
-                data_to_write.append("headers: []")
+            # data_to_write.append(f"path: {request.path}")
 
 
-                        # 쿼리 문자열 추가
-            queries = request.query.items()
-            if len(queries) > 0:
-                data_to_write.append("queries: [")
-                for k, v in queries:
-                    data_to_write.append(f"{k}={v}")
+            # # 헤더 추가
+            # headers = request.headers.items()
+            # if len(headers) > 0:
+            #     data_to_write.append("headers: [")
+            #     for k, v in headers:
+            #         data_to_write.append(f"{k}: {v}")
+            #     data_to_write.append("]")
 
-                data_to_write.append("]")
+            # else:
+            #     data_to_write.append("headers: []")
 
-            else:
-                data_to_write.append("queries: []")       
 
-            if method == "POST":
-                process_post_request_excel(request, contentType, contentLength, data_to_write, TransferEncoding)
-            else:
-                pass
+            #             # 쿼리 문자열 추가
+            # queries = request.query.items()
+            # if len(queries) > 0:
+            #     data_to_write.append("queries: [")
+            #     for k, v in queries:
+            #         data_to_write.append(f"{k}={v}")
 
-                     
+            #     data_to_write.append("]")
+
+            # else:
+            #     data_to_write.append("queries: []")       
+
+            # if method == "POST":
+            #     process_post_request_excel(request, contentType, contentLength, data_to_write, TransferEncoding)
+            # else:
+            #     pass
+
+            matched_patterns_set = set(matched_patterns)     
+            no_dup_matched_patterns = list(matched_patterns_set)
+
+            no_dup_matched_patterns_to_write = []
+
+            no_dup_matched_patterns_to_write.append("발견된 값: [")
+
+            for item in no_dup_matched_patterns:
+                no_dup_matched_patterns_to_write.append(item)
+
+            no_dup_matched_patterns_to_write.append("]")
 
             # 데이터를 엑셀에 기록
-            excel_IO.write_to_excel(host, data_to_write, matched_patterns, package_name)
+            excel_IO.write_to_excel(host, data_to_write, prsnlList, package_name, no_dup_matched_patterns_to_write)
 
 
 def process_post_request(request, contentType, contentLength, TransferEncoding):

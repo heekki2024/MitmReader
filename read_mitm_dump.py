@@ -141,7 +141,7 @@ def process_request_personInfo(f, prsnlList, package_name):
         print(method)
         print(host)
 
-        data_to_write.append(request)
+        # data_to_write.append(request)
         data_to_write.append(method)
         data_to_write.append(host)
 
@@ -245,7 +245,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                         matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
                         print("x-www-form-urlencoded")
 
-                        for k, v in data:
+                        for k, v in data.items():
                             print(k)
                             print(v)
                         print('----------------------END--------------------')
@@ -255,7 +255,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                         print("json")
 
                     case "text/plain":
-                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, text, matched_patterns, data_to_write)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
                         print("text/plain")
 
                     case "application/octet-stream":

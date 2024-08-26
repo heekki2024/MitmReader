@@ -23,8 +23,8 @@ def excel_trackerList_input():
     return trackerList
 
 def excel_prsnlList_input():
-    prsnlList_path = r"C:\Users\xten\Desktop\prsnlList - 복사본.xlsx"
-    # prsnlList_path = r"C:\Users\kfri1\Desktop\PersonalInfoList.xlsx"
+    # prsnlList_path = r"C:\Users\xten\Desktop\prsnlList - 복사본.xlsx"
+    prsnlList_path = r"C:\Users\kfri1\Desktop\PersonalInfoList.xlsx"
 
     wb = openpyxl.load_workbook(prsnlList_path)
     ws = wb['Sheet1']
@@ -68,7 +68,7 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 kv = kv.decode('utf-8', errors='ignore')
 
     if isinstance(kv, list):
-        for item in v:
+        for item in kv:
 
             if isinstance(item, (list, dict, tuple)):
                 matched_patterns, data_to_write = match_prsnlList(prsnlList, item, matched_patterns, data_to_write)
@@ -172,7 +172,7 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
 
             if re.search(word_pattern, str(kv), re.IGNORECASE):
                 matched_patterns.append(pattern)
-                data_to_write.append(str(kv))
+                # data_to_write.append(str(kv))
 
             if re.search(exception_keyword, str(kv), re.IGNORECASE):
                 return None, data_to_write
@@ -209,8 +209,8 @@ def clean_string(value):
 
 def write_to_excel(host, data, prsnlList, package_name, no_dup_matched_patterns_to_write):
 
-    # results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
-    results_folder_path = r"C:\Users\xten\Desktop\testing3"
+    results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
+    # results_folder_path = r"C:\Users\xten\Desktop\testing3"
 
 
     result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")

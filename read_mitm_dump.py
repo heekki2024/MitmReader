@@ -209,6 +209,8 @@ def process_request_personInfo(f, prsnlList, package_name):
 
         if  TransferEncoding == 'chunked' or contentLength > 0:
 
+            data_to_write.append(f"-> {contentType}: [")
+
             text = request.get_text(False)
 
             print(type(text))  # <class 'NoneType'>
@@ -255,7 +257,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                         print("json")
 
                     case "text/plain":
-                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, text, matched_patterns, data_to_write)
                         print("text/plain")
 
                     case "application/octet-stream":
@@ -267,6 +269,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                     case _:
                         print(f"Unsupported Content-Type: {contentType}")
                         return
+                data_to_write.append(f"]")
 
                 # 매칭 결과 처리
                 if matched_patterns:
@@ -363,10 +366,10 @@ def process_request_personInfo(f, prsnlList, package_name):
             #     process_post_request_excel(request, contentType, contentLength, data_to_write, TransferEncoding)
             # else:
             #     pass
-
+            print(matched_patterns)
             matched_patterns_set = set(matched_patterns)     
             no_dup_matched_patterns = list(matched_patterns_set)
-
+            print(no_dup_matched_patterns)
             no_dup_matched_patterns_to_write = []
 
             no_dup_matched_patterns_to_write.append("발견된 값: [")
@@ -375,6 +378,7 @@ def process_request_personInfo(f, prsnlList, package_name):
                 no_dup_matched_patterns_to_write.append(item)
 
             no_dup_matched_patterns_to_write.append("]")
+       
 
             # 데이터를 엑셀에 기록
             excel_IO.write_to_excel(host, data_to_write, prsnlList, package_name, no_dup_matched_patterns_to_write)

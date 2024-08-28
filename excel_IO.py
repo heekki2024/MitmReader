@@ -52,6 +52,7 @@ def match_trackerList(trackerList, host):
 
 def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
 
+
     exception_keyword = 'x86'
 
 
@@ -69,7 +70,98 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 # If neither gzip nor zlib decompression works, assume it's regular bytes
                 kv = kv.decode('utf-8', errors='ignore')
 
-    if isinstance(kv, list):
+    if isinstance(kv, list) and len(kv) == 2:
+        k,v = kv
+
+        if isinstance(k, str):
+            # try:
+            #     v = json.loads(v)
+            #     print("JSON 데이터:", v)
+            # except json.JSONDecodeError as e:
+            #     print("JSON형태가 아니거나 JSON 파싱 오류:", e)
+            try:
+                # 문자열을 평가하여 리스트인지 확인
+                k = ast.literal_eval(k)
+                # 평가된 결과가 리스트인지 확인
+            except (ValueError, SyntaxError) as e:
+                # 평가 과정에서 오류가 발생하면 리스트가 아님
+                print(e)
+
+        if isinstance(k, (list, dict, tuple)):
+            matched_patterns, data_to_write = match_prsnlList(prsnlList, k, matched_patterns, data_to_write)
+            if matched_patterns is None:
+                return None, data_to_write
+
+        else:
+
+            if isinstance(k, str) and k.startswith('='):
+                data_to_write.append("\\" + k +": ")
+            else:
+                data_to_write.append(str(k)+": ")
+
+            # data_to_write.append(str(k)+": ")
+
+            for pattern in prsnlList:
+                if pattern is None:  # None 무시
+                    continue
+
+                word_pattern = rf'(?<!\w){re.escape(str(pattern))}(?!\w)'  # 패턴을 문자열로 변환
+
+                if re.search(word_pattern, str(k), re.IGNORECASE):
+                    matched_patterns.append(pattern)
+
+                    # print(f"world_pattern = {word_pattern}")
+                    # print(f"@@@{pattern}@@@")
+
+                if re.search(exception_keyword, str(k), re.IGNORECASE):
+                    return None, data_to_write
+
+        if isinstance(v, str):
+            # try:
+            #     v = json.loads(v)
+            #     print("JSON 데이터:", v)
+            # except json.JSONDecodeError as e:
+            #     print("JSON형태가 아니거나 JSON 파싱 오류:", e)
+            try:
+                # 문자열을 평가하여 리스트인지 확인
+                v = ast.literal_eval(v)
+                # 평가된 결과가 리스트인지 확인
+            except (ValueError, SyntaxError) as e:
+                # 평가 과정에서 오류가 발생하면 리스트가 아님
+                print(e)
+
+
+        if isinstance(v, (list, dict, tuple)):
+            matched_patterns, data_to_write = match_prsnlList(prsnlList, v, matched_patterns, data_to_write)
+            if matched_patterns is None:
+                return None, data_to_write
+            
+        else:
+
+            if isinstance(v, str) and v.startswith('='):
+                data_to_write.append("\\" + v)
+            else:
+                data_to_write.append(str(v))
+
+
+            # data_to_write.append(str(v))
+
+            for pattern in prsnlList:
+                if pattern is None:  # None 무시
+                    continue
+                # word_pattern = rf'(?!\w|_|-){re.escape(str(pattern))}(?!\w|_|-)'
+                word_pattern = rf'(?<!\w){re.escape(str(pattern))}(?!\w)'  # 패턴을 문자열로 변환
+
+                if re.search(word_pattern, str(v), re.IGNORECASE):
+                    matched_patterns.append(pattern)
+
+                    # print(f"world_pattern = {word_pattern}")
+                    # print(f"@@@{pattern}@@@")
+
+                if re.search(exception_keyword, str(v), re.IGNORECASE):
+                    return None, data_to_write
+
+    elif isinstance(kv, list):
         for item in kv:
             # print(item)
             if isinstance(item, str):
@@ -93,7 +185,13 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                     return None, data_to_write
 
             else:
-                data_to_write.append(str(item))
+
+                if isinstance(item, str) and item.startswith('='):
+                    data_to_write.append("\\" + item)
+                else:
+                    data_to_write.append(str(item))
+
+                # data_to_write.append(str(item))
                 for pattern in prsnlList:
                     
                     if pattern is None:  # None 무시
@@ -104,30 +202,57 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                     if re.search(word_pattern, str(item), re.IGNORECASE):
                         print(f"world_pattern = {word_pattern}")
 
-                        matched_patterns.append(pattern)
-                        print(f"@@@{pattern}@@@")
+                        # matched_patterns.append(pattern)
+                        # print(f"@@@{pattern}@@@")
 
                     if re.search(exception_keyword, str(item), re.IGNORECASE):
                         return None, data_to_write
         
     elif isinstance(kv, tuple) and len(kv) == 2:
         k,v = kv
-        data_to_write.append(str(k)+": ")
+
+        if isinstance(k, str):
+            # try:
+            #     v = json.loads(v)
+            #     print("JSON 데이터:", v)
+            # except json.JSONDecodeError as e:
+            #     print("JSON형태가 아니거나 JSON 파싱 오류:", e)
+            try:
+                # 문자열을 평가하여 리스트인지 확인
+                k = ast.literal_eval(k)
+                # 평가된 결과가 리스트인지 확인
+            except (ValueError, SyntaxError) as e:
+                # 평가 과정에서 오류가 발생하면 리스트가 아님
+                print(e)
         
-        for pattern in prsnlList:
-            if pattern is None:  # None 무시
-                continue
+        if isinstance(k, (list, dict, tuple)):
+            matched_patterns, data_to_write = match_prsnlList(prsnlList, k, matched_patterns, data_to_write)
+            if matched_patterns is None:
+                return None, data_to_write     
+        else:
 
-            word_pattern = rf'(?<!\w){re.escape(str(pattern))}(?!\w)'  # 패턴을 문자열로 변환
 
-            if re.search(word_pattern, str(k), re.IGNORECASE):
-                matched_patterns.append(pattern)
+            if isinstance(k, str) and k.startswith('='):
+                data_to_write.append("\\" + k +": ")
+            else:
+                data_to_write.append(str(k)+": ")
 
-                print(f"world_pattern = {word_pattern}")
-                print(f"@@@{pattern}@@@")
+            # data_to_write.append(str(k)+": ")
+       
+            for pattern in prsnlList:
+                if pattern is None:  # None 무시
+                    continue
 
-            if re.search(exception_keyword, str(k), re.IGNORECASE):
-                return None, data_to_write
+                word_pattern = rf'(?<!\w){re.escape(str(pattern))}(?!\w)'  # 패턴을 문자열로 변환
+
+                if re.search(word_pattern, str(k), re.IGNORECASE):
+                    matched_patterns.append(pattern)
+
+                    # print(f"world_pattern = {word_pattern}")
+                    # print(f"@@@{pattern}@@@")
+
+                if re.search(exception_keyword, str(k), re.IGNORECASE):
+                    return None, data_to_write
 
         if isinstance(v, str):
             # try:
@@ -150,7 +275,14 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 return None, data_to_write
             
         else:
-            data_to_write.append(str(v))
+
+            if isinstance(v, str) and v.startswith('='):
+                data_to_write.append("\\" + v)
+            else:
+                data_to_write.append(str(v))
+
+
+            # data_to_write.append(str(v))
 
             for pattern in prsnlList:
                 if pattern is None:  # None 무시
@@ -161,8 +293,8 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 if re.search(word_pattern, str(v), re.IGNORECASE):
                     matched_patterns.append(pattern)
 
-                    print(f"world_pattern = {word_pattern}")
-                    print(f"@@@{pattern}@@@")
+                    # print(f"world_pattern = {word_pattern}")
+                    # print(f"@@@{pattern}@@@")
 
                 if re.search(exception_keyword, str(v), re.IGNORECASE):
                     return None, data_to_write
@@ -191,7 +323,13 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                     return None, data_to_write
                 
             else:
-                data_to_write.append(str(item))
+
+                if isinstance(item, str) and item.startswith('='):
+                    data_to_write.append("\\" + item)
+                else:
+                    data_to_write.append(str(item))
+                    
+                # data_to_write.append(str(item))
                 for pattern in prsnlList:
                     if pattern is None:  # None 무시
                         continue
@@ -199,17 +337,24 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                     # word_pattern = rf'(?!\w|_|-){re.escape(str(pattern))}(?!\w|_|-)'
 
                     if re.search(word_pattern, str(item), re.IGNORECASE):
-                        print(f"world_pattern = {word_pattern}")
-
                         matched_patterns.append(pattern)
-                        print(f"@@@{pattern}@@@")
+
+                        # print(f"world_pattern = {word_pattern}")
+                        # print(f"@@@{pattern}@@@")
 
                     if re.search(exception_keyword, str(item), re.IGNORECASE):
                         return None, data_to_write
                 
     elif isinstance(kv, dict):
         for k, v in kv.items():
-            data_to_write.append(str(k)+": ")
+
+
+            if isinstance(k, str) and k.startswith('='):
+                data_to_write.append("\\" + k +": ")
+            else:
+                data_to_write.append(str(k)+": ")
+            
+            # data_to_write.append(str(k)+": ")
 
 
             for pattern in prsnlList:
@@ -221,8 +366,8 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 if re.search(word_pattern, str(k), re.IGNORECASE):
                     matched_patterns.append(pattern)
 
-                    print(f"world_pattern = {word_pattern}")
-                    print(f"@@@{pattern}@@@")
+                    # print(f"world_pattern = {word_pattern}")
+                    # print(f"@@@{pattern}@@@")
 
                 if re.search(exception_keyword, str(k), re.IGNORECASE):
                     return None, data_to_write
@@ -250,7 +395,12 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                     
             else:
 
-                data_to_write.append(str(v))
+                if isinstance(v, str) and v.startswith('='):
+                    data_to_write.append("\\" + v)
+                else:
+                    data_to_write.append(str(v))
+
+                # data_to_write.append(str(v))
 
                 for pattern in prsnlList:
                     if pattern is None:  # None 무시
@@ -263,8 +413,8 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                     if re.search(word_pattern, str(v), re.IGNORECASE):
                         matched_patterns.append(pattern)
 
-                        print(f"world_pattern = {word_pattern}")
-                        print(f"@@@{pattern}@@@")
+                        # print(f"world_pattern = {word_pattern}")
+                        # print(f"@@@{pattern}@@@")
 
 
                     if re.search(exception_keyword, str(v), re.IGNORECASE):
@@ -293,8 +443,14 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 return None, data_to_write
 
         else:
-            
-            data_to_write.append(str(kv))
+
+
+            if isinstance(kv, str) and kv.startswith('='):
+                data_to_write.append("\\" + kv)
+            else:
+                data_to_write.append(str(kv))
+
+            # data_to_write.append(str(kv))
 
             for pattern in prsnlList:
                 if pattern is None:  # None 무시
@@ -303,10 +459,10 @@ def match_prsnlList(prsnlList, kv, matched_patterns, data_to_write):
                 # word_pattern = rf'(?!\w|_|-){re.escape(str(pattern))}(?!\w|_|-)'
 
                 if re.search(word_pattern, str(kv), re.IGNORECASE):
-                    print(f"world_pattern = {word_pattern}")
-
                     matched_patterns.append(pattern)
-                    print(f"@@@{pattern}@@@")
+
+                    # print(f"world_pattern = {word_pattern}")
+                    # print(f"@@@{pattern}@@@")
 
                 if re.search(exception_keyword, str(kv), re.IGNORECASE):
                     return None, data_to_write

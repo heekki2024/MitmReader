@@ -500,7 +500,7 @@ def clean_string(value):
 def write_to_excel(host, data, prsnlList, package_name, no_dup_matched_patterns_to_write):
 
     # results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
-    results_folder_path = r"C:\Users\xten\Desktop\testing3"
+    results_folder_path = r"C:\Users\xten\Desktop\testing4"
 
 
     result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")

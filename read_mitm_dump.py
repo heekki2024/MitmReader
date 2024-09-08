@@ -120,7 +120,7 @@ count = 0
 
 
 #------------------------------------------------------------------------------------------
-def process_request_personInfo(f, prsnlList, package_name):
+def process_request_personInfo(f, prsnlList, wb):
     global match
     matched_patterns = []
     data_to_write = []
@@ -145,10 +145,10 @@ def process_request_personInfo(f, prsnlList, package_name):
         data_to_write.append(method)
         data_to_write.append(host)
 
-        word_pattern = rf'{excel_IO.re.escape(package_name)}\b'
+        # word_pattern = rf'{excel_IO.re.escape(package_name)}\b'
 
-        if excel_IO.re.search(word_pattern, host, excel_IO.re.IGNORECASE):
-            return
+        # if excel_IO.re.search(word_pattern, host, excel_IO.re.IGNORECASE):
+        #     return
         
 
         # print(method, host)
@@ -381,8 +381,9 @@ def process_request_personInfo(f, prsnlList, package_name):
        
 
             # 데이터를 엑셀에 기록
-            excel_IO.write_to_excel(host, data_to_write, prsnlList, package_name, no_dup_matched_patterns_to_write)
+            excel_IO.write_to_excel(host, data_to_write, prsnlList, no_dup_matched_patterns_to_write, wb)
 
+            return host
 
 def process_post_request(request, contentType, contentLength, TransferEncoding):
     if  TransferEncoding == 'chunked' or contentLength > 0:
@@ -572,11 +573,19 @@ def process_flows(dump_path, mode):
 
             elif mode == '2':
                 totcount = 0
+                hostlist = []
+
+                
+                wb, result_path = excel_IO.open_excel(package_name)
                 for f in freader.stream():
                     global match
                     
+
+
                     prsnlList = excel_IO.excel_prsnlList_input()
-                    process_request_personInfo(f, prsnlList, package_name)
+                    host = process_request_personInfo(f, prsnlList, wb)
+                    excel_IO.making_Result(host, hostlist)
+
                     print("")
                     match = False
                     totcount += 1
@@ -584,7 +593,10 @@ def process_flows(dump_path, mode):
 
                     print("\n!===============================!\n")
 
-                    
+                try:
+                    wb.save(result_path)
+                except Exception as e:
+                    print(f"Error saving Excel file: {e}")
                 # elif mode == 3:
                 #     process_request(f)
                 #     print("")    

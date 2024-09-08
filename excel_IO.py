@@ -25,17 +25,43 @@ def excel_trackerList_input():
     return trackerList
 
 def excel_prsnlList_input():
+
+    def get_last_row_in_column(ws, column_letter):
+        last_row = ws.max_row
+        for row in range(last_row, 0, -1):  # 마지막 행에서부터 거꾸로 탐색
+            if ws[f'{column_letter}{row}'].value is not None:
+                return row
+        return None  # 값이 없다면 None 반환
+
     prsnlList_path = r"C:\Users\xten\Desktop\prsnlList.xlsx"
     # prsnlList_path = r"C:\Users\kfri1\Desktop\PersonalInfoList.xlsx"
 
     wb = openpyxl.load_workbook(prsnlList_path)
     ws = wb['Sheet1']
-    if 'Sheet1' in wb.sheetnames:
-        last_row = ws.max_row
-        prsnlList = []
-        for i in range(1, last_row + 1, 1):
-            prsnlList.append(str(ws[f'A{i}'].value))        
-    return prsnlList
+
+    last_row_in_A = get_last_row_in_column(ws, 'A')
+    last_row_in_B = get_last_row_in_column(ws, 'B')
+
+
+    # if 'Sheet1' in wb.sheetnames:
+    #     last_row = ws.max_row
+    #     prsnlList = []
+    #     for i in range(1, last_row + 1, 1):
+    #         prsnlList.append(str(ws[f'A{i}'].value))        
+
+    totprsnlList = []
+    key_prsnlList = []
+    value_prsnlList = []
+
+    for i in range(1, last_row_in_A + 1, 1):
+        totprsnlList.append(str(ws[f'A{i}'].value))
+        key_prsnlList.append(str(ws[f'A{i}'].value))
+
+    for i in range(1, last_row_in_B + 1, 1):
+        totprsnlList.append(str(ws[f'B{i}'].value))
+        value_prsnlList.append(str(ws[f'B{i}'].value))
+
+    return totprsnlList, key_prsnlList, value_prsnlList
 
 
 
@@ -496,9 +522,8 @@ def clean_string(value):
     return re.sub(r'[\x00-\x1F\x7F]', '', value)
 
 
-
-def write_to_excel(host, data, prsnlList, package_name, no_dup_matched_patterns_to_write):
-
+def open_excel(package_name, prsnlList):
+    
     # results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
     results_folder_path = r"C:\Users\xten\Desktop\testing4"
 
@@ -510,9 +535,22 @@ def write_to_excel(host, data, prsnlList, package_name, no_dup_matched_patterns_
     else:
         wb = openpyxl.Workbook()
 
-        # 기본으로 생성되는 'Sheet' 시트를 제거
-        default_sheet = wb.active
-        wb.remove(default_sheet)
+        # # 기본으로 생성되는 'Sheet' 시트를 제거
+        # default_sheet = wb.active
+        # wb.remove(default_sheet)
+
+        # 기본으로 생성되는 'Sheet' 시트의 이름을 'result'로 변경
+        wb.active.title = 'Result'
+        ws = wb['Result']
+
+    for col, keyValue in enumerate(prsnlList, start=6):  # F열은 6번째 열이므로 start=6
+        ws.cell(row=1, column=col, value=value)
+
+    
+    return wb, result_path
+
+def write_to_excel(host, data, prsnlList, no_dup_matched_patterns_to_write, wb):
+
 
     clean_host = clean_host_name(host)
 
@@ -563,8 +601,8 @@ def write_to_excel(host, data, prsnlList, package_name, no_dup_matched_patterns_
 
 
 
-    try:
-        wb.save(result_path)
-    except Exception as e:
-        print(f"Error saving Excel file: {e}")
 
+def making_Result(host, hostlist):
+    
+    if host not in hostlist:
+        hostlist.append(host)

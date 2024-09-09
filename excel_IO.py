@@ -49,19 +49,19 @@ def excel_prsnlList_input():
     #     for i in range(1, last_row + 1, 1):
     #         prsnlList.append(str(ws[f'A{i}'].value))        
 
-    totprsnlList = []
+    total_prsnlList = []
     key_prsnlList = []
     value_prsnlList = []
 
     for i in range(1, last_row_in_A + 1, 1):
-        totprsnlList.append(str(ws[f'A{i}'].value))
+        total_prsnlList.append(str(ws[f'A{i}'].value))
         key_prsnlList.append(str(ws[f'A{i}'].value))
 
     for i in range(1, last_row_in_B + 1, 1):
-        totprsnlList.append(str(ws[f'B{i}'].value))
+        total_prsnlList.append(str(ws[f'B{i}'].value))
         value_prsnlList.append(str(ws[f'B{i}'].value))
 
-    return totprsnlList, key_prsnlList, value_prsnlList
+    return total_prsnlList, key_prsnlList, value_prsnlList
 
 
 
@@ -522,7 +522,7 @@ def clean_string(value):
     return re.sub(r'[\x00-\x1F\x7F]', '', value)
 
 
-def open_excel(package_name, prsnlList):
+def open_excel(package_name, key_prsnlList):
     
     # results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
     results_folder_path = r"C:\Users\xten\Desktop\testing4"
@@ -543,13 +543,13 @@ def open_excel(package_name, prsnlList):
         wb.active.title = 'Result'
         ws = wb['Result']
 
-    for col, keyValue in enumerate(prsnlList, start=6):  # F열은 6번째 열이므로 start=6
-        ws.cell(row=1, column=col, value=value)
+    for col, key in enumerate(key_prsnlList, start=5):  # E열은 5번째 열이므로 start=5
+        ws.cell(row=1, column=col, value=key)
 
     
     return wb, result_path
 
-def write_to_excel(host, data, prsnlList, no_dup_matched_patterns_to_write, wb):
+def write_to_excel(host, data, total_prsnlList, no_dup_matched_patterns_to_write, wb):
 
 
     clean_host = clean_host_name(host)
@@ -572,8 +572,8 @@ def write_to_excel(host, data, prsnlList, no_dup_matched_patterns_to_write, wb):
 
             print(value)
 
-            if prsnlList:
-                for pattern in prsnlList:
+            if total_prsnlList:
+                for pattern in total_prsnlList:
 
                     word_pattern = rf'(?<!\w){re.escape(str(pattern))}(?!\w)'
                     # word_pattern = rf'(?!\w|_|-){re.escape(str(pattern))}(?!\w|_|-)'
@@ -602,7 +602,7 @@ def write_to_excel(host, data, prsnlList, no_dup_matched_patterns_to_write, wb):
 
 
 
-def making_Result(host, hostlist):
+def write_Result(host, hostlist, wb):
     
     if host not in hostlist:
         hostlist.append(host)

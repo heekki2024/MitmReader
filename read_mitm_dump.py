@@ -120,7 +120,7 @@ count = 0
 
 
 #------------------------------------------------------------------------------------------
-def process_request_personInfo(f, prsnlList, wb):
+def process_request_personInfo(f, total_prsnlList, wb, hostlist):
     global match
     matched_patterns = []
     data_to_write = []
@@ -174,7 +174,7 @@ def process_request_personInfo(f, prsnlList, wb):
                     TransferEncoding = v  
 
     
-                matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns, data_to_write)
+                matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, (k, v), matched_patterns, data_to_write)
 
 
                 if matched_patterns:
@@ -193,7 +193,7 @@ def process_request_personInfo(f, prsnlList, wb):
         if len(queries) > 0:
             data_to_write.append("queries:[")
             for k, v in queries:
-                matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, (k, v), matched_patterns, data_to_write)
+                matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, (k, v), matched_patterns, data_to_write)
                 if matched_patterns:
                     match = True
                     # return
@@ -244,7 +244,7 @@ def process_request_personInfo(f, prsnlList, wb):
                 match contentType:
                     case "application/x-www-form-urlencoded":
                         data = parse_qs(text)
-                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, data, matched_patterns, data_to_write)
                         print("x-www-form-urlencoded")
 
                         for k, v in data.items():
@@ -253,17 +253,17 @@ def process_request_personInfo(f, prsnlList, wb):
                         print('----------------------END--------------------')
                     case "application/json":
                         data = json.loads(text)
-                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, data, matched_patterns, data_to_write)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, data, matched_patterns, data_to_write)
                         print("json")
 
                     case "text/plain":
-                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, text, matched_patterns, data_to_write)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, text, matched_patterns, data_to_write)
                         print("text/plain")
 
                     case "application/octet-stream":
                         hex_data = text.encode('utf-8').hex()
                         print(f"Hexdump: {hex_data}")
-                        matched_patterns, data_to_write = excel_IO.match_prsnlList(prsnlList, hex_data, matched_patterns, data_to_write)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, hex_data, matched_patterns, data_to_write)
                         print("octet-stream")
 
                     case _:
@@ -381,7 +381,7 @@ def process_request_personInfo(f, prsnlList, wb):
        
 
             # 데이터를 엑셀에 기록
-            excel_IO.write_to_excel(host, data_to_write, prsnlList, no_dup_matched_patterns_to_write, wb)
+            excel_IO.write_to_excel(host, data_to_write, total_prsnlList, no_dup_matched_patterns_to_write, wb)
 
             return host
 
@@ -576,15 +576,16 @@ def process_flows(dump_path, mode):
                 hostlist = []
 
                 
-                wb, result_path = excel_IO.open_excel(package_name)
+                total_prsnlList, key_prsnlList, value_prsnlList = excel_IO.excel_prsnlList_input()
+                wb, result_path = excel_IO.open_excel(package_name, key_prsnlList)
+
                 for f in freader.stream():
                     global match
                     
 
 
-                    prsnlList = excel_IO.excel_prsnlList_input()
-                    host = process_request_personInfo(f, prsnlList, wb)
-                    excel_IO.making_Result(host, hostlist)
+                    host = process_request_personInfo(f, total_prsnlList, wb, hostlist)
+                    # excel_IO.making_Result(host, hostlist)
 
                     print("")
                     match = False

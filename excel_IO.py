@@ -61,6 +61,8 @@ def excel_prsnlList_input():
         total_prsnlList.append(str(ws[f'B{i}'].value))
         value_prsnlList.append(str(ws[f'B{i}'].value))
 
+    # print(len(total_prsnlList))
+
     return total_prsnlList, key_prsnlList, value_prsnlList
 
 
@@ -546,6 +548,7 @@ def open_excel(package_name, key_prsnlList):
     for col, key in enumerate(key_prsnlList, start=5):  # E열은 5번째 열이므로 start=5
         ws.cell(row=1, column=col, value=key)
 
+    ws.cell(row = 1, column = 4 + len(key_prsnlList) + 1, value = 'ETC')
     
     return wb, result_path
 
@@ -602,7 +605,40 @@ def write_to_excel(host, data, total_prsnlList, no_dup_matched_patterns_to_write
 
 
 
-def write_Result(host, hostlist, wb):
-    
+def write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matched_patterns, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict):
+
+    ws = wb['Result']
     if host not in hostlist:
         hostlist.append(host)
+        hostlist_number_dict[host] = row_hostlist_number
+        hostlist_cell = ws.cell(row = row_hostlist_number, column = 4, value = host)
+        row_hostlist_number += 1
+
+        # if host not in hostlist_etc_dict:
+        #     hostlist_etc_dict[host] = set()
+        hostlist_etc_dict[host] = set()
+        
+
+    for col in range(5, 5 + len(key_prsnlList)):
+        for matched_pattern in no_dup_matched_patterns:
+            if ws.cell(row = 1, column = col).value == matched_pattern:
+                #값이 있을 경우 덮어씌워버림
+                key_checked_cell = ws.cell(row = hostlist_number_dict[host], column = col, value = 'O')
+                key_checked_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+
+
+
+    for matched_pattern in no_dup_matched_patterns:
+        for value in value_prsnlList:
+            if matched_pattern == value:
+                # etc_value.add(matched_pattern)
+                hostlist_etc_dict[host].add(matched_pattern)
+
+    
+    # hostlist_etc_dict[host] = 
+    # etc_value_as_string = ', '.join(etc_value)
+    hostlist_etc_dict_as_string = ', '.join(hostlist_etc_dict[host])
+    ws.cell(row = hostlist_number_dict[host], column = 4 + len(key_prsnlList) + 1, value = hostlist_etc_dict_as_string)
+
+
+    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict

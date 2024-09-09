@@ -120,7 +120,7 @@ count = 0
 
 
 #------------------------------------------------------------------------------------------
-def process_request_personInfo(f, total_prsnlList, wb, hostlist):
+def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict):
     global match
     matched_patterns = []
     data_to_write = []
@@ -181,7 +181,8 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist):
                     match = True
                     # return
                 elif matched_patterns == None:
-                    return
+                    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
+
             data_to_write.append("]")
 
         else:
@@ -268,7 +269,7 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist):
 
                     case _:
                         print(f"Unsupported Content-Type: {contentType}")
-                        return
+                        raise
                 data_to_write.append(f"]")
 
                 # 매칭 결과 처리
@@ -277,7 +278,8 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist):
                     print(match)
                 elif matched_patterns is None:
                     print(matched_patterns)
-                    return
+                    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
+
                 print('FALSE')
             except json.JSONDecodeError as e:
                 print(f"JSON Decode Error: {e}")
@@ -329,43 +331,6 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist):
             
 #--------------------------------------------------------------------------------------------------
 
-            # # 매칭된 데이터를 저장할 리스트
-
-            # # 메소드와 호스트 추가
-            # data_to_write.append(method)
-            # data_to_write.append(host)
-
-            # data_to_write.append(f"path: {request.path}")
-
-
-            # # 헤더 추가
-            # headers = request.headers.items()
-            # if len(headers) > 0:
-            #     data_to_write.append("headers: [")
-            #     for k, v in headers:
-            #         data_to_write.append(f"{k}: {v}")
-            #     data_to_write.append("]")
-
-            # else:
-            #     data_to_write.append("headers: []")
-
-
-            #             # 쿼리 문자열 추가
-            # queries = request.query.items()
-            # if len(queries) > 0:
-            #     data_to_write.append("queries: [")
-            #     for k, v in queries:
-            #         data_to_write.append(f"{k}={v}")
-
-            #     data_to_write.append("]")
-
-            # else:
-            #     data_to_write.append("queries: []")       
-
-            # if method == "POST":
-            #     process_post_request_excel(request, contentType, contentLength, data_to_write, TransferEncoding)
-            # else:
-            #     pass
             print(matched_patterns)
             matched_patterns_set = set(matched_patterns)     
             no_dup_matched_patterns = list(matched_patterns_set)
@@ -382,8 +347,8 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist):
 
             # 데이터를 엑셀에 기록
             excel_IO.write_to_excel(host, data_to_write, total_prsnlList, no_dup_matched_patterns_to_write, wb)
-
-            return host
+            hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict = excel_IO.write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matched_patterns, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict)
+    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
 
 def process_post_request(request, contentType, contentLength, TransferEncoding):
     if  TransferEncoding == 'chunked' or contentLength > 0:
@@ -574,8 +539,12 @@ def process_flows(dump_path, mode):
             elif mode == '2':
                 totcount = 0
                 hostlist = []
-
+                row_hostlist_number = 2
+                hostlist_number_dict = {}
+                hostlist_etc_dict = {}
                 
+                
+
                 total_prsnlList, key_prsnlList, value_prsnlList = excel_IO.excel_prsnlList_input()
                 wb, result_path = excel_IO.open_excel(package_name, key_prsnlList)
 
@@ -584,7 +553,7 @@ def process_flows(dump_path, mode):
                     
 
 
-                    host = process_request_personInfo(f, total_prsnlList, wb, hostlist)
+                    hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict = process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict)
                     # excel_IO.making_Result(host, hostlist)
 
                     print("")

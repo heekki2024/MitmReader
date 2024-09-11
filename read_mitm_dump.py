@@ -17,7 +17,11 @@ import os
 import gzip
 import zlib
 from io import BytesIO
-
+import base64
+from email.parser import BytesParser
+from email.policy import default
+import cgi
+import binascii
 
 
 
@@ -40,6 +44,7 @@ match = False
         
 def read_dump():
     dump_path = input("dump파일의 경로를 입력해주세요: ")
+
 
     return dump_path
 
@@ -120,7 +125,7 @@ count = 0
 
 
 #------------------------------------------------------------------------------------------
-def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict):
+def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count, app_name):
     global match
     matched_patterns = []
     data_to_write = []
@@ -167,6 +172,9 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
                 if k.casefold() == "Content-Type".casefold():
                     vv = v.split(";")
                     contentType = vv[0]
+                    boundary_kv = v.split("boundary=")[-1]
+
+
                 elif k.casefold() == "Content-Length".casefold():
                     contentLength = int(v)
 
@@ -181,7 +189,7 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
                     match = True
                     # return
                 elif matched_patterns == None:
-                    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
+                    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count
 
             data_to_write.append("]")
 
@@ -220,26 +228,47 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
 
             content_encoding = request.headers.get("Content-Encoding", "")
 
+            # # 압축 해제 로직
+            # if "gzip" in content_encoding and not is_already_decoded(text):
+            #     try:
+            #         compressed_data = BytesIO(text.encode('utf-8'))
+            #         with gzip.GzipFile(fileobj=compressed_data) as f:
+            #             text = f.read().decode('utf-8')
+            #             print('gzip 성공')
+            #             print(text)
+
+            #     except (OSError, gzip.BadGzipFile) as e:
+            #         print('gzip 에러')
+            #         pass
+
+            # elif "deflate" in content_encoding and not is_already_decoded(text):
+            #     try:
+            #         text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
+            #     except zlib.error as e:
+            #         pass
+                
             # 압축 해제 로직
             if "gzip" in content_encoding and not is_already_decoded(text):
                 try:
-                    compressed_data = BytesIO(text.encode('utf-8'))
+                    # text가 바이너리 데이터로 가정
+                    compressed_data = BytesIO(text)
                     with gzip.GzipFile(fileobj=compressed_data) as f:
                         text = f.read().decode('utf-8')
                         print('gzip 성공')
                         print(text)
 
                 except (OSError, gzip.BadGzipFile) as e:
-                    print('gzip 에러')
-                    pass
+                    print('gzip 에러:', e)
 
             elif "deflate" in content_encoding and not is_already_decoded(text):
                 try:
-                    text = zlib.decompress(text.encode('utf-8')).decode('utf-8')
+                    # text가 바이너리 데이터로 가정
+                    text = zlib.decompress(text).decode('utf-8')
+                    print('deflate 성공')
                 except zlib.error as e:
-                    pass
-                
-                
+                    print('deflate 에러:', e)                
+
+
             try:
                 # Content-Type에 따른 처리
                 match contentType:
@@ -248,10 +277,10 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
                         matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, data, matched_patterns, data_to_write)
                         print("x-www-form-urlencoded")
 
-                        for k, v in data.items():
-                            print(k)
-                            print(v)
-                        print('----------------------END--------------------')
+                        # for k, v in data.items():
+                        #     print(k)
+                        #     print(v)
+                        # print('----------------------END--------------------')
                     case "application/json":
                         data = json.loads(text)
                         matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, data, matched_patterns, data_to_write)
@@ -267,6 +296,68 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
                         matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, hex_data, matched_patterns, data_to_write)
                         print("octet-stream")
 
+                    case "application/x-ndjson":    
+                        raw_lines = text.splitlines()
+                        for line in raw_lines:                            
+                            json_object = json.loads(line)
+                            # print(json.dumps(json_object, indent=4))  # JSON 객체 출력
+                            matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, json_object, matched_patterns, data_to_write)
+                            print("x-ndjson")
+                    case "application/x-amz-json-1.0":
+                        # Kinesis 요청 본문은 Base64로 인코딩된 Data 필드를 포함
+                        json_data = json.loads(text)
+                        # for record in json_data['Records']:
+                        #     decoded_data = base64.b64decode(record['Data']).decode('utf-8')
+                        #     print(f"Decoded Kinesis Data: {decoded_data}")
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, json_data, matched_patterns, data_to_write)
+                        print("application/x-amz-json-1.1")                            
+
+                    case "application/x-amz-json-1.1":
+                        # Kinesis 요청 본문은 Base64로 인코딩된 Data 필드를 포함
+                        json_data = json.loads(text)
+                        # for record in json_data['Records']:
+                        #     decoded_data = base64.b64decode(record['Data']).decode('utf-8')
+                        #     print(f"Decoded Kinesis Data: {decoded_data}")
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, json_data, matched_patterns, data_to_write)
+                        print("application/x-amz-json-1.1")
+
+                    case "multipart/form-data":
+                        # boundary 파싱 (boundary 문자열 추출)
+                        boundary = boundary_kv.split("boundary=")[-1]
+                        # multipart 데이터 파싱
+                        parsed_data = cgi.parse_multipart(BytesIO(text.encode('utf-8')), {"boundary": boundary.encode('utf-8')})
+
+                        # protobuf 데이터 처리
+                        if "input_protobuf_encoded" in parsed_data:
+                            protobuf_encoded = parsed_data['input_protobuf_encoded'][0]
+                            try:
+                                decoded_protobuf = base64.b64decode(protobuf_encoded)
+                                print("multipart/form-data")
+
+                                # protobuf로 디코딩된 데이터를 필요한 방식으로 처리
+                                # 예를 들어 excel_IO.match_prsnlList와 같은 함수로 데이터를 처리
+                                matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, decoded_protobuf, matched_patterns, data_to_write)
+                            except (base64.binascii.Error, UnicodeDecodeError) as e:
+                                print(f"Protobuf 디코딩 에러: {e}")
+                                return None                        
+
+                    case "application/binary":
+
+                        # 문자열을 bytes로 변환 (utf-8 인코딩 사용)
+                        binary_data = text.encode('utf-8')
+                        
+                        # bytes 데이터를 헥사 문자열로 변환
+                        hex_data = binascii.hexlify(binary_data).decode('ascii')
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, hex_data, matched_patterns, data_to_write)
+                        print("application/binary")
+                    case "application/x-protobuf":
+                        if isinstance(text, str):
+                            text = text.encode('utf-8')
+                        # Protobuf 데이터를 읽기 위해 BytesIO 객체로 변환
+                        binary_data = BytesIO(text)
+                        matched_patterns, data_to_write = excel_IO.match_prsnlList(total_prsnlList, binary_data.getvalue(), matched_patterns, data_to_write)
+                        print("application/x-protobuf")
+
                     case _:
                         print(f"Unsupported Content-Type: {contentType}")
                         raise
@@ -278,7 +369,7 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
                     print(match)
                 elif matched_patterns is None:
                     print(matched_patterns)
-                    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
+                    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count
 
                 print('FALSE')
             except json.JSONDecodeError as e:
@@ -325,7 +416,7 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
             print("\n----------------------\n")
 
             if method == "POST":
-                process_post_request(request, contentType, contentLength, TransferEncoding)
+                process_post_request(request, contentType, contentLength, TransferEncoding, boundary_kv=None)
             else:
                 print("Not POST")
             
@@ -347,10 +438,10 @@ def process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, 
 
             # 데이터를 엑셀에 기록
             excel_IO.write_to_excel(host, data_to_write, total_prsnlList, no_dup_matched_patterns_to_write, wb)
-            hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict = excel_IO.write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matched_patterns, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict)
-    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
+            hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count= excel_IO.write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matched_patterns, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count, app_name)
+    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count
 
-def process_post_request(request, contentType, contentLength, TransferEncoding):
+def process_post_request(request, contentType, contentLength, TransferEncoding, boundary_kv):
     if  TransferEncoding == 'chunked' or contentLength > 0:
         try:
             print(f"=> {contentType}: [")
@@ -404,6 +495,62 @@ def process_post_request(request, contentType, contentLength, TransferEncoding):
                     hex_data = text.encode('utf-8').hex()
                     print(f"Hexdump: {hex_data}")
 
+                case "application/x-ndjson":    
+                    raw_lines = text.splitlines()
+                    for line in raw_lines:                            
+                        json_object = json.loads(line)
+                        print(json.dumps(json_object, indent=4))  # JSON 객체 출력
+                case "application/x-amz-json-1.0":
+                    # Kinesis 요청 본문은 Base64로 인코딩된 Data 필드를 포함
+                    json_data = json.loads(text)
+                    for record in json_data['Records']:
+                        # decoded_data = base64.b64decode(record['Data']).decode('utf-8')
+                        print(f"Decoded Kinesis Data: {record}")
+
+
+                case "application/x-amz-json-1.1":
+                    # Kinesis 요청 본문은 Base64로 인코딩된 Data 필드를 포함
+                    json_data = json.loads(text)
+                    for record in json_data['Records']:
+                        # decoded_data = base64.b64decode(record['Data']).decode('utf-8')
+                        print(f"Decoded Kinesis Data: {record}")
+
+                case "multipart/form-data":
+                    # boundary 파싱 (boundary 문자열 추출)
+                    boundary = boundary_kv.split("boundary=")[-1]
+                    # multipart 데이터 파싱
+                    parsed_data = cgi.parse_multipart(BytesIO(text.encode('utf-8')), {"boundary": boundary.encode('utf-8')})
+
+                    # protobuf 데이터 처리
+                    if "input_protobuf_encoded" in parsed_data:
+                        protobuf_encoded = parsed_data['input_protobuf_encoded'][0]
+                        try:
+                            decoded_protobuf = base64.b64decode(protobuf_encoded)
+                            print(f"Decoded Protobuf Data: {decoded_protobuf}")
+
+                            # protobuf로 디코딩된 데이터를 필요한 방식으로 처리
+                            # 예를 들어 excel_IO.match_prsnlList와 같은 함수로 데이터를 처리
+                        except (base64.binascii.Error, UnicodeDecodeError) as e:
+                            print(f"Protobuf 디코딩 에러: {e}")
+                            return None
+                case "application/binary":
+
+                    # 문자열을 bytes로 변환 (utf-8 인코딩 사용)
+                    binary_data = text.encode('utf-8')
+                    
+                    # bytes 데이터를 헥사 문자열로 변환
+                    hex_data = binascii.hexlify(binary_data).decode('ascii')
+                    print("Hex Data:", hex_data)
+
+                case "application/x-protobuf":
+
+                    if isinstance(text, str):
+                        text = text.encode('utf-8')
+                    # Protobuf 데이터를 읽기 위해 BytesIO 객체로 변환
+                    binary_data = BytesIO(text)
+                    
+                    # 원시 데이터를 출력
+                    print("Raw Protobuf Data:", binary_data.getvalue())
                 case _:
                     print("\t** SKIP **")
 
@@ -417,92 +564,6 @@ def process_post_request(request, contentType, contentLength, TransferEncoding):
     else:
         print("\033[93m" + "POST이긴 하다" + "\033[0m")
 
-
-def process_post_request_excel(request, contentType, contentLength, data_to_write , TransferEncoding):
-    if  TransferEncoding == 'chunked' or contentLength > 0:
-        try:
-            # 엑셀에서 수식 오류를 방지하기 위해 특수 문자를 이스케이프 처리
-            def escape_excel_formula(value):
-                if isinstance(value, str):
-                    # 문자열이 수식으로 인식되지 않게 앞에 '를 추가
-                    if value.startswith(('=', '+', '-', '@')):
-                        return f"'{value}"
-                    else:
-                        return value
-                elif isinstance(value, list):
-                    # 리스트인 경우 각각의 요소를 이스케이프 처리
-                    return [escape_excel_formula(v) for v in value]
-                return value
-
-            data_to_write.append(f"> {contentType}: [")
-
-            text = request.get_text(False)
-            content_encoding = request.headers.get("Content-Encoding", "")
-
-            # gzip 또는 deflate 압축 해제 시도
-            if "gzip" in content_encoding and not is_already_decoded(text):
-                try:
-                    compressed_data = BytesIO(text.encode('utf-8'))
-                    with gzip.GzipFile(fileobj=compressed_data) as f:
-                        decompressed_data = f.read().decode('utf-8')
-                    text = decompressed_data
-                except gzip.BadGzipFile:
-                    print("Error: Data is not gzipped as expected, processing as plain text.")
-                except Exception as e:
-                    print(f"Unexpected error while decompressing gzip: {e}")
-
-            elif "deflate" in content_encoding and not is_already_decoded(text):
-                try:
-                    decompressed_data = zlib.decompress(text.encode('utf-8')).decode('utf-8')
-                    text = decompressed_data
-                except zlib.error as e:
-                    print(f"Error while decompressing deflate: {e}")
-                except Exception as e:
-                    print(f"Unexpected error while decompressing deflate: {e}")
-
-            # Content-Type에 따라 데이터 처리
-            match contentType:
-                case "application/x-www-form-urlencoded":
-                    data = parse_qs(text)
-                    for k, v in data.items():
-                        escaped_key = escape_excel_formula(k)
-                        escaped_value = escape_excel_formula(v)
-                        data_to_write.append(f"\t{escaped_key}={escaped_value}")
-
-                case "application/json":
-                    try:
-                        data = json.loads(text)
-                        if isinstance(data, dict):
-                            for k, v in data.items():
-                                escaped_key = escape_excel_formula(k)
-                                escaped_value = escape_excel_formula(v)
-                                data_to_write.append(f"\t{escaped_key}: {escaped_value}")
-                        elif isinstance(data, list):
-                            for i, item in enumerate(data):
-                                escaped_item = escape_excel_formula(item)
-                                data_to_write.append(f"\t{i}: {escaped_item}")
-                    except json.JSONDecodeError as e:
-                        print(f"JSON Decode Error: {e}")
-                        print("Invalid JSON:", text)
-
-                case "text/plain":
-                    escaped_text = escape_excel_formula(text)
-                    data_to_write.append(f"\t{escaped_text}")
-
-                case "application/octet-stream":
-                    # Binary data processing, here we just store the hexdump
-                    hex_data = text.encode('utf-8').hex()
-                    data_to_write.append(f"\tHexdump: {hex_data}")
-
-                case _:
-                    data_to_write.append("\t** SKIP **")
-
-            data_to_write.append("]")  # 데이터의 끝에 닫는 대괄호 추가
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            print("Processing as plain text:", text)
-    else:
-        data_to_write.append("post contents 없음")
 
 
 def is_already_decoded(data):
@@ -525,7 +586,7 @@ def is_already_decoded(data):
     return True  # 이미 압축 해제된 데이터로 간주
 
 def process_flows(dump_path, mode):   
-    package_name = os.path.basename(dump_path)
+    app_name = os.path.basename(dump_path)
 
     try:
         with open(dump_path, "rb") as logfile:
@@ -542,18 +603,18 @@ def process_flows(dump_path, mode):
                 row_hostlist_number = 2
                 hostlist_number_dict = {}
                 hostlist_etc_dict = {}
-                
+                hostlist_count = 1
                 
 
                 total_prsnlList, key_prsnlList, value_prsnlList = excel_IO.excel_prsnlList_input()
-                wb, result_path = excel_IO.open_excel(package_name, key_prsnlList)
+                wb, result_path = excel_IO.open_excel(app_name, key_prsnlList)
 
                 for f in freader.stream():
                     global match
                     
 
 
-                    hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict = process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict)
+                    hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count = process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count, app_name)
                     # excel_IO.making_Result(host, hostlist)
 
                     print("")
@@ -562,6 +623,34 @@ def process_flows(dump_path, mode):
                     print(f"\033[94m" + "total count" + str({totcount}) + "\033[0m")
 
                     print("\n!===============================!\n")
+
+            elif mode == '3':
+                totcount = 0
+                hostlist = []
+                row_hostlist_number = 2
+                hostlist_number_dict = {}
+                hostlist_etc_dict = {}
+                hostlist_count = 1
+                
+
+                
+                total_prsnlList, key_prsnlList, value_prsnlList = excel_IO.excel_prsnlList_input()
+                wb, result_path = excel_IO.open_excel(app_name, key_prsnlList)
+
+                for f in freader.stream():
+                    global match
+                    
+
+
+                    hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count = process_request_personInfo(f, total_prsnlList, wb, hostlist, key_prsnlList, value_prsnlList, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count, app_name)
+                    # excel_IO.making_Result(host, hostlist)
+
+                    print("")
+                    match = False
+                    totcount += 1
+                    print(f"\033[94m" + "total count" + str({totcount}) + "\033[0m")
+
+                    print("\n!===============================!\n")                    
 
                 try:
                     wb.save(result_path)

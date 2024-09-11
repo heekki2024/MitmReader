@@ -524,13 +524,13 @@ def clean_string(value):
     return re.sub(r'[\x00-\x1F\x7F]', '', value)
 
 
-def open_excel(package_name, key_prsnlList):
+def open_excel(app_name, key_prsnlList):
     
     # results_folder_path = r"C:\Users\kfri1\Desktop\testing2"
     results_folder_path = r"C:\Users\xten\Desktop\testing4"
 
 
-    result_path = os.path.join(results_folder_path, f"{package_name}.xlsx")
+    result_path = os.path.join(results_folder_path, f"{app_name}.xlsx")
 
     if os.path.exists(result_path):
         wb = openpyxl.load_workbook(result_path)
@@ -546,8 +546,8 @@ def open_excel(package_name, key_prsnlList):
         ws = wb['Result']
 
     for col, key in enumerate(key_prsnlList, start=5):  # E열은 5번째 열이므로 start=5
-        ws.cell(row=1, column=col, value=key)
-
+        key_prsnlList_cell = ws.cell(row=1, column=col, value=key)
+        key_prsnlList_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
     ws.cell(row = 1, column = 4 + len(key_prsnlList) + 1, value = 'ETC')
     
     return wb, result_path
@@ -605,20 +605,26 @@ def write_to_excel(host, data, total_prsnlList, no_dup_matched_patterns_to_write
 
 
 
-def write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matched_patterns, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict):
+def write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matched_patterns, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count, app_name):
 
     ws = wb['Result']
     if host not in hostlist:
         hostlist.append(host)
         hostlist_number_dict[host] = row_hostlist_number
         hostlist_cell = ws.cell(row = row_hostlist_number, column = 4, value = host)
-        row_hostlist_number += 1
+        hostlist_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
 
         # if host not in hostlist_etc_dict:
         #     hostlist_etc_dict[host] = set()
         hostlist_etc_dict[host] = set()
-        
+        hostlist_count_cell = ws.cell(row = row_hostlist_number, column = 1, value = hostlist_count)
+        hostlist_count_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
 
+        app_name_cell = ws.cell(row = row_hostlist_number, column = 2, value = app_name)
+        app_name_cell.alignment = openpyxl.styles.Alignment(horizontal='center', vertical='center')
+
+        row_hostlist_number += 1
+        hostlist_count +=1
     for col in range(5, 5 + len(key_prsnlList)):
         for matched_pattern in no_dup_matched_patterns:
             if ws.cell(row = 1, column = col).value == matched_pattern:
@@ -641,4 +647,17 @@ def write_Result(host, hostlist, wb, key_prsnlList, value_prsnlList, no_dup_matc
     ws.cell(row = hostlist_number_dict[host], column = 4 + len(key_prsnlList) + 1, value = hostlist_etc_dict_as_string)
 
 
-    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict
+    return hostlist, row_hostlist_number, hostlist_number_dict, hostlist_etc_dict, hostlist_count
+    
+
+
+#===========================================================================================================================================================================================================#
+
+def read_excel_data():
+    excel_data_path = input("excel_data 경로를 입력해주세요: ")
+    wb = openpyxl.load_workbook(excel_data_path)
+    ws = wb['Sheet1']
+    ranking = ws[f'A{row}'].value if ws[f'A{row}'].value is not None else ''
+
+
+    
